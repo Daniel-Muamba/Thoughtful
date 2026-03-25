@@ -38,7 +38,10 @@ export interface DBType {
   drafts: Draft[];
 }
 
-const dbPath = path.join(process.cwd(), 'src/lib/db.json');
+const isVercel = process.env.VERCEL === '1';
+const dbPath = isVercel 
+  ? '/tmp/db.json' 
+  : path.join(process.cwd(), 'src/lib/db.json');
 
 export function readDB(): DBType {
   try {
