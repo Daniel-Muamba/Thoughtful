@@ -1,4 +1,9 @@
-export default function Editor() {
+"use client";
+
+export default function Editor({ draft, onChange }: any) {
+  const content = draft?.content || '';
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+
   return (
     <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">
       <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
@@ -6,17 +11,13 @@ export default function Editor() {
       </header>
       <div className="flex-1 flex overflow-hidden">
         {/* Main Editor Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 serif-font leading-relaxed text-[#f0f0f0] text-lg editor-container" contentEditable suppressContentEditableWarning>
-          <p className="mb-6">The evolution of project management paradigms reflects a broader shift towards data-driven and socially responsible frameworks.</p>
-          <p className="mb-6">
-            As indicated by recent academic discourse, the effective integration of <span className="text-rose-400/80 underline decoration-rose-400/30">artificial intelligence</span> and the prioritization of <span className="text-rose-400/80 underline decoration-rose-400/30">global sustainability goals</span> are now foundational to modern project execution.
-          </p>
-          <p className="mb-6">
-            This requires project leaders to not only master technical analytical tools but also to foster <span className="text-rose-400/80 underline decoration-rose-400/30">adaptive, collaborative team</span> environments that can navigate complexity.
-          </p>
-          <p className="mb-6">
-            Furthermore, the professional development landscape is adapting, with certification paths increasingly emphasizing these contemporary competencies.
-          </p>
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+          <textarea 
+            className="w-full h-full resize-none bg-transparent p-8 serif-font leading-relaxed text-[#f0f0f0] text-lg editor-container focus:outline-none"
+            placeholder="Start writing..."
+            value={content}
+            onChange={(e) => onChange?.(e.target.value)}
+          />
         </div>
         {/* Provocation Margin */}
         <div className="provocation-margin shrink-0 flex flex-col items-center py-8 gap-12 text-zinc-600 relative">
@@ -28,12 +29,6 @@ export default function Editor() {
               <button className="hover:text-rose-400 transition-colors" title="Clarify terminology">
                 <span className="material-symbols-outlined text-[20px]">error</span>
               </button>
-              <button className="hover:text-rose-400 transition-colors" title="Missing evidence">
-                <span className="material-symbols-outlined text-[20px]">error</span>
-              </button>
-              <button className="hover:text-rose-400 transition-colors" title="Weak transition">
-                <span className="material-symbols-outlined text-[20px]">error</span>
-              </button>
             </div>
           </div>
         </div>
@@ -41,8 +36,8 @@ export default function Editor() {
       {/* Editor Footer */}
       <footer className="h-8 border-t academic-border px-4 flex items-center justify-between shrink-0 bg-[#141414]">
         <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-medium">
-          <span>Word Count: 98</span>
-          <span>Last Saved: Just now.</span>
+          <span>Word Count: {wordCount}</span>
+          <span>Last Saved: Auto-sync</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-emerald-500/50"></div>

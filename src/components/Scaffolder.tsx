@@ -1,4 +1,6 @@
-export default function Scaffolder() {
+"use client";
+
+export default function Scaffolder({ nodes = [], onAddNode, onUpdateNode }: any) {
   return (
     <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">
       <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
@@ -8,28 +10,36 @@ export default function Scaffolder() {
         </button>
       </header>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
-        {/* Thought Card 1 */}
-        <div className="thought-card p-4 rounded-md space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-tighter">Source Link: p. 42</span>
+        {nodes.map((node: any, idx: number) => (
+          <div key={node.id} className="thought-card p-4 rounded-md space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-tighter">Node {idx + 1}</span>
+            </div>
+            <textarea
+              className="w-full text-sm italic text-zinc-300 leading-tight bg-transparent resize-none focus:outline-none"
+              placeholder="Paste evidence..."
+              value={node.evidence_quote || ''}
+              onChange={(e) => onUpdateNode(node.id, { evidence_quote: e.target.value })}
+              rows={2}
+            />
+            <div className="pt-2 border-t border-[#333]">
+              <span className="text-zinc-500 text-sm block mb-1">My Claim:</span>
+              <textarea
+                className="w-full text-sm text-zinc-100 font-medium bg-transparent resize-none focus:outline-none"
+                placeholder="Write a claim connecting evidence..."
+                value={node.student_claim || ''}
+                onChange={(e) => onUpdateNode(node.id, { student_claim: e.target.value })}
+                rows={2}
+              />
+            </div>
           </div>
-          <p className="text-sm italic text-zinc-300 leading-tight">&quot;Evidence: ...collaborative group work and a final exam to demonstrate their mastery of analytical tools...&quot;</p>
-          <div className="pt-2 border-t border-[#333]">
-            <p className="text-sm text-zinc-100 font-medium"><span className="text-zinc-500 font-normal">My Claim:</span> This suggests a shift towards experiential learning over purely theoretical reading, requiring practical application of concepts in team environments.</p>
-          </div>
-        </div>
-        {/* Thought Card 2 */}
-        <div className="thought-card p-4 rounded-md space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-tighter">Source Link: p. 58</span>
-          </div>
-          <p className="text-sm italic text-zinc-300 leading-tight">&quot;Evidence: ...modern industry trends, such as the integration of artificial intelligence...&quot;</p>
-          <div className="pt-2 border-t border-[#333]">
-            <p className="text-sm text-zinc-100 font-medium"><span className="text-zinc-500 font-normal">My Claim:</span> AI is not just an auxiliary tool but a core component of modern project lifecycles, demanding new skill sets.</p>
-          </div>
-        </div>
+        ))}
+        
         {/* Add Card Button */}
-        <button className="w-full py-3 border border-dashed border-zinc-700 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-all flex items-center justify-center gap-2">
+        <button 
+          onClick={onAddNode}
+          className="w-full py-3 mt-4 border border-dashed border-zinc-700 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-all flex items-center justify-center gap-2"
+        >
           <span className="material-symbols-outlined text-[16px]">add</span>
           Add Thought Card
         </button>
@@ -37,3 +47,4 @@ export default function Scaffolder() {
     </section>
   );
 }
+

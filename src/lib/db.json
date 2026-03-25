@@ -1,6 +1,20 @@
 {
-  "sessions": [],
+  "sessions": [
+    {
+      "id": "default-session-1",
+      "title": "New Session",
+      "source_text": "Paste your reading material here...",
+      "active_lens": "Analytical",
+      "created_at": "2026-03-25T22:37:03.212Z"
+    }
+  ],
   "scaffoldNodes": [],
   "provocations": [],
-  "drafts": []
+  "drafts": [
+    {
+      "session_id": "default-session-1",
+      "content": "Start writing your draft...",
+      "last_trigger_word_count": 0
+    }
+  ]
 }
