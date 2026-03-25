@@ -9,7 +9,7 @@
 
 @layer components {
   .academic-border {
-    @apply border-[#2a2a2a];
+    border-color: #2a2a2a;
   }
   .perspective-highlight {
     background: rgba(255, 235, 59, 0.1);
