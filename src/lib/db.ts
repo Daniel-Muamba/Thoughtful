@@ -3,6 +3,7 @@ import path from 'path';
 
 export interface Session {
   id: string;
+  name?: string;
   title: string;
   source_text: string;
   active_lens: string;
