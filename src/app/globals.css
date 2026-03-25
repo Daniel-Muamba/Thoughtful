@@ -1,26 +1,57 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: #121212;
+    color: #e0e0e0;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .academic-border {
+    @apply border-[#2a2a2a];
+  }
+  .perspective-highlight {
+    background: rgba(255, 235, 59, 0.1);
+    border-bottom: 1px solid rgba(255, 235, 59, 0.3);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .perspective-highlight:hover {
+    background: rgba(255, 235, 59, 0.2);
+  }
+  .provocation-margin {
+    width: 40px;
+    border-left: 1px solid #2a2a2a;
+  }
+  .thought-card {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    transition: all 0.2s ease;
+  }
+  .thought-card:hover {
+    border-color: #4a4a4a;
+    transform: translateY(-1px);
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+  }
+  .editor-container {
+    caret-color: #fff;
+  }
+  .editor-container:focus {
+    outline: none;
+  }
+  .serif-font {
+    font-family: var(--font-lora), serif;
+  }
 }
