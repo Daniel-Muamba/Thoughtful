@@ -10,7 +10,7 @@ export default function Reader({ session, onChange, onSendToScaffolder }: any) {
   const [activeQuestion, setActiveQuestion] = useState<{ id: string, text: string } | null>(null);
   const [selectionRange, setSelectionRange] = useState<{ text: string, top: number, left: number } | null>(null);
 
-  const lenses = ["Analytical", "The Skeptic", "The Exam-Maker", "The Business Auditor"];
+  const lenses = ["Analytical", "The Skeptic", "The Exam-Maker", "The Business Auditor", "The Philosopher", "The First-Principles Thinker", "The Devil's Advocate"];
   const currentLens = session?.active_lens || "Analytical";
   const sourceText = session?.source_text || "";
   
