@@ -1,18 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function Reader({ session, onChange, onSendToScaffolder }: any) {
   const [isEditing, setIsEditing] = useState(!session?.source_text?.trim());
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [highlights, setHighlights] = useState<any[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<{ id: string, text: string } | null>(null);
   const [selectionRange, setSelectionRange] = useState<{ text: string, top: number, left: number } | null>(null);
 
   const lenses = ["Analytical", "The Skeptic", "The Exam-Maker", "The Business Auditor"];
-
   const currentLens = session?.active_lens || "Analytical";
   const sourceText = session?.source_text || "";
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-analyze when returning to Read mode if we already have text
   useEffect(() => {
@@ -27,6 +29,33 @@ export default function Reader({ session, onChange, onSendToScaffolder }: any) {
     const currentIdx = lenses.indexOf(currentLens);
     const nextLens = lenses[(currentIdx + 1) % lenses.length];
     onChange?.({ active_lens: nextLens });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.text) {
+        onChange?.({ source_text: data.text });
+        setIsEditing(false); // Switch to Read Mode automatically
+      }
+    } catch (err) {
+      console.error("Upload error", err);
+    } finally {
+      setIsUploading(false);
+      // Reset input value to allow uploading the same file again if needed
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const analyzeText = async (text: string, lens: string) => {
@@ -54,7 +83,7 @@ export default function Reader({ session, onChange, onSendToScaffolder }: any) {
   // Helper to accurately map strings to spans
   const renderReadMode = () => {
     if (isAnalyzing) return <div className="text-zinc-500 italic p-6">Analyzing with {currentLens} lens...</div>;
-    if (!sourceText) return <div className="text-zinc-600 italic p-6">Text area is empty. Switch to Edit Mode.</div>;
+    if (!sourceText) return <div className="text-zinc-600 italic p-6">Text area is empty. Switch to Edit Mode or upload a PDF.</div>;
 
     // We split by sentences matching our mock API logic
     const sentences = sourceText.match(/[^.!?]+[.!?]+/g) || [sourceText];
@@ -125,12 +154,30 @@ export default function Reader({ session, onChange, onSendToScaffolder }: any) {
     );
   };
 
-
   return (
     <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">
       <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">The Reader</h2>
         <div className="flex items-center gap-2">
+          {/* Upload PDF */}
+          <input 
+            type="file" 
+            accept="application/pdf" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload}
+            className="hidden" 
+            aria-label="Upload PDF Document"
+            title="Upload PDF Document"
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[14px]">upload_file</span>
+            {isUploading ? "Uploading..." : "Add Source"}
+          </button>
+
           {/* Edit / Read Mode Toggle */}
           <button 
             onClick={() => setIsEditing(!isEditing)}
@@ -156,7 +203,7 @@ export default function Reader({ session, onChange, onSendToScaffolder }: any) {
         {isEditing ? (
           <textarea 
             className="w-full h-full resize-none bg-transparent p-6 serif-font leading-relaxed text-[#c0c0c0] text-lg focus:outline-none"
-            placeholder="Paste text or upload source material here to begin active reading..."
+            placeholder="Paste text or upload PDF source material here to begin active reading..."
             value={sourceText}
             onChange={(e) => onChange?.({ source_text: e.target.value })}
           />
