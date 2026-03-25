@@ -15,6 +15,13 @@ export default function Scaffolder({ nodes = [], onAddNode, onUpdateNode }: any)
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-tighter">Node {idx + 1}</span>
             </div>
+            <input
+              type="text"
+              placeholder="Thought Title..."
+              className="w-full text-sm font-semibold text-white bg-transparent outline-none mb-1 mt-2"
+              value={node.title || ''}
+              onChange={(e) => onUpdateNode(node.id, { title: e.target.value })}
+            />
             <textarea
               className="w-full text-sm italic text-zinc-300 leading-tight bg-transparent resize-none focus:outline-none"
               placeholder="Paste evidence..."

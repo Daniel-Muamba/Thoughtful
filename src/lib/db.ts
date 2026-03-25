@@ -12,6 +12,7 @@ export interface Session {
 export interface ScaffoldNode {
   id: string;
   session_id: string;
+  title?: string;
   evidence_quote: string;
   student_claim: string;
   order_index: number;

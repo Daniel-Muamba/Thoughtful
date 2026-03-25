@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 
-export default function Reader({ session, onChange }: any) {
+export default function Reader({ session, onChange, onSendToScaffolder }: any) {
   const [isEditing, setIsEditing] = useState(!session?.source_text?.trim());
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [highlights, setHighlights] = useState<any[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<{ id: string, text: string } | null>(null);
+  const [selectionRange, setSelectionRange] = useState<{ text: string, top: number, left: number } | null>(null);
 
   const lenses = ["Analytical", "The Skeptic", "The Exam-Maker", "The Business Auditor"];
 
@@ -59,7 +60,18 @@ export default function Reader({ session, onChange }: any) {
     const sentences = sourceText.match(/[^.!?]+[.!?]+/g) || [sourceText];
 
     return (
-      <div className="p-6 serif-font leading-relaxed text-[#c0c0c0] text-lg space-y-4">
+      <div 
+        className="p-6 serif-font leading-relaxed text-[#c0c0c0] text-lg space-y-4"
+        onMouseUp={(e) => {
+          const selection = window.getSelection();
+          const text = selection?.toString().trim();
+          if (text && text.length > 3) {
+            setSelectionRange({ text, top: e.clientY - 45, left: e.clientX });
+          } else {
+            setSelectionRange(null);
+          }
+        }}
+      >
         {sentences.map((sentence: string, sIdx: number) => {
           const match = highlights.find((h) => h.text_snippet === sentence.trim());
           
@@ -88,9 +100,31 @@ export default function Reader({ session, onChange }: any) {
           }
           return <span key={sIdx}>{sentence}</span>;
         })}
+
+        {/* Floating Send Button */}
+        {selectionRange && (
+          <div 
+            className="fixed z-50 transform -translate-x-1/2" 
+            style={{ top: selectionRange.top, left: selectionRange.left }}
+          >
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onSendToScaffolder?.(selectionRange.text);
+                setSelectionRange(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+              className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded shadow-lg flex items-center gap-1 font-sans"
+            >
+              <span className="material-symbols-outlined text-[14px]">send</span>
+              Send to Scaffolder
+            </button>
+          </div>
+        )}
       </div>
     );
   };
+
 
   return (
     <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">

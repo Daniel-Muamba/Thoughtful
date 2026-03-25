@@ -73,13 +73,17 @@ export default function Home() {
               const newSessions = data.sessions.map((s: any) => s.id === sessionId ? { ...s, ...updates } : s);
               saveToAPI({ sessions: newSessions });
             }} 
+            onSendToScaffolder={(text: string) => {
+              const newNode = { id: Date.now().toString(), session_id: sessionId, title: "", evidence_quote: text, student_claim: "", order_index: nodes.length };
+              saveToAPI({ scaffoldNodes: [...data.scaffoldNodes, newNode] });
+            }}
           />
         </div>
         <div className="w-1/4 min-w-[300px] h-full">
           <Scaffolder 
             nodes={nodes} 
             onAddNode={() => {
-              const newNode = { id: Date.now().toString(), session_id: sessionId, evidence_quote: "", student_claim: "", order_index: nodes.length };
+              const newNode = { id: Date.now().toString(), session_id: sessionId, title: "", evidence_quote: "", student_claim: "", order_index: nodes.length };
               saveToAPI({ scaffoldNodes: [...data.scaffoldNodes, newNode] });
             }}
             onUpdateNode={(nodeId: string, updates: any) => {
@@ -91,6 +95,7 @@ export default function Home() {
         <div className="w-2/4 min-w-[400px] h-full">
           <Editor 
             draft={draft}
+            nodesCount={nodes.length}
             onChange={(newContent: string) => {
               const newDrafts = data.drafts.map((d: any) => d.session_id === sessionId ? { ...d, content: newContent } : d);
               saveToAPI({ drafts: newDrafts });
