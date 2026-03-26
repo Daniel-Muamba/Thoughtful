@@ -87,6 +87,7 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
   const [eli10, setEli10] = useState<ELI10State>({ loading: false, explanation: null });
 
   const containerRef = useRef<HTMLElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const hasLoadedRef = useRef(false);
 
   // ── Load source text on mount ──────────────────────────────────────────────
@@ -133,6 +134,15 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
       /* silent */
     }
   };
+
+  // ── Set dynamic positioning for toolbar ──────────────────────────────────
+  useEffect(() => {
+    if (toolbarRef.current && selRect) {
+      toolbarRef.current.style.top = `${selRect.top - 8}px`;
+      toolbarRef.current.style.left = `${selRect.cx}px`;
+      toolbarRef.current.style.transform = 'translate(-50%, -100%)';
+    }
+  }, [selRect]);
 
   // ── Dismiss toolbar + bubble on Escape or outside click ────────────────────
   useEffect(() => {
@@ -326,8 +336,8 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
       {/* ── Floating Toolbar (fixed, centered above selection) ─────────────── */}
       {selRect && !isEditing && (
         <div
+          ref={toolbarRef}
           className="fixed z-50 flex flex-col items-center gap-1.5 pointer-events-none"
-          style={{ top: selRect.top - 8, left: selRect.cx, transform: 'translate(-50%, -100%)' }}
         >
           {/* ELI10 Speech Bubble */}
           {(eli10.loading || eli10.explanation) && (

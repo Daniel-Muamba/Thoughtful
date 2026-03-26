@@ -154,13 +154,14 @@ export default function Scaffolder({ nodes, onUpdate, onDelete }: ScaffolderProp
               The Editor is unlocked!
             </p>
           )}
-          {/* Progress bar */}
           <div className="mt-2 h-1 rounded-full bg-zinc-800 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
                 remaining === 0 ? 'bg-emerald-500' : 'bg-yellow-600'
               }`}
-              style={{ width: `${Math.min(100, (completedCount / GATEKEEPER_THRESHOLD) * 100)}%` }}
+              ref={(el) => {
+                if (el) el.style.width = `${Math.min(100, (completedCount / GATEKEEPER_THRESHOLD) * 100)}%`;
+              }}
             />
           </div>
         </footer>
