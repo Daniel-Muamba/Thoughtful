@@ -19,13 +19,13 @@ export async function POST(req: Request) {
     // Only assess if there's enough text to matter, but we'll let the model decide if it's fine.
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
       }
     });
 
-    const formattedNodes = (scaffoldNodes || []).map(n => 
+    const formattedNodes = (scaffoldNodes || []).map(n =>
       `- Title: ${n.title}\n  Evidence: "${n.evidence_quote}"\n  Claim: ${n.student_claim}`
     ).join('\n');
 
@@ -58,6 +58,7 @@ Respond ONLY with a valid JSON object matching this schema:
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
+    console.log(result)
     try {
       const jsonResponse = JSON.parse(responseText);
       return NextResponse.json(jsonResponse);

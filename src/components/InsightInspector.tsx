@@ -63,10 +63,10 @@ export default function InsightInspector({ highlight, onClose }: InsightInspecto
     isDragging.current = true;
     dragStartPos.current = { x: e.clientX, y: e.clientY };
     windowStartPos.current = { x: position.x, y: position.y };
-    if (headerRef.current) {
-      headerRef.current.setPointerCapture(e.pointerId);
-    }
-    e.stopPropagation();
+    
+    // Crucial: capture on currentTarget (the bound header div) 
+    // to prevent DOMException if a child span was clicked
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -92,9 +92,13 @@ export default function InsightInspector({ highlight, onClose }: InsightInspecto
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging.current) return;
     isDragging.current = false;
-    if (headerRef.current) {
-      headerRef.current.releasePointerCapture(e.pointerId);
-    }
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    
+    // Save new pos to localStorage
+    // Using a setTimeout hack to ensure state has flushed if needed,
+    // though the current `position` from closure is usually fine because
+    // handlePointerMove triggered setPosition seconds ago.
+    // Better yet, just use a ref for latest coords.
   };
 
   // We save the position to localStorage explicitly when dragging stops
@@ -113,9 +117,9 @@ export default function InsightInspector({ highlight, onClose }: InsightInspecto
         isMinimized ? "rounded-full" : "rounded-xl"
       }`}
       style={{
-        width: INSPECTOR_WIDTH,
-        top: position.y,
-        left: position.x,
+        width: `${INSPECTOR_WIDTH}px`,
+        top: `${position.y}px`,
+        left: `${position.x}px`,
         // When grabbing we disable transitions for instant tracking
         transitionProperty: isDragging.current ? "none" : "border-radius, height, background-color",
       }}
@@ -127,7 +131,7 @@ export default function InsightInspector({ highlight, onClose }: InsightInspecto
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a]/90 shrink-0 cursor-move border-b border-[#2d2d2d]/50 group select-none touch-none"
+        className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a]/90 shrink-0 cursor-grab active:cursor-grabbing border-b border-[#2d2d2d]/50 group select-none touch-none"
       >
         <div className="flex flex-col gap-0.5 justify-center opacity-50 group-hover:opacity-100 transition-opacity">
           <div className="w-8 h-px bg-zinc-500 rounded-full" />
