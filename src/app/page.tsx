@@ -1,167 +1,190 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Reader from "@/components/Reader";
-import Scaffolder from "@/components/Scaffolder";
-import Editor from "@/components/Editor";
+import React, { useEffect, useState } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 export default function Home() {
-  const [data, setData] = useState<{ sessions: any[], scaffoldNodes: any[], drafts: any[] }>({
-    sessions: [],
-    scaffoldNodes: [],
-    drafts: []
-  });
-  
-  const [activeSessionId, setActiveSessionId] = useState<string>("session_1");
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    fetch('/api/session').then(res => res.json()).then(result => {
-      setData({
-        sessions: result.sessions || [],
-        scaffoldNodes: result.scaffoldNodes || [],
-        drafts: result.drafts || []
-      });
-      // Ensure the active session exists, else fallback to the first available
-      if (result.sessions?.length > 0 && !result.sessions.find((s: any) => s.id === activeSessionId)) {
-        setActiveSessionId(result.sessions[0].id);
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setIsMounted(true);
   }, []);
 
-  const saveToAPI = async (updates: any) => {
-    const newData = { ...data, ...updates };
-    setData(newData); // Optimistic UI update
-    try {
-      await fetch('/api/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newData)
-      });
-    } catch (e) {
-      console.error("Save failed", e);
-    }
-  };
-
-  const createNewProject = () => {
-    const newId = `session_${Date.now()}`;
-    const newSession = {
-      id: newId,
-      name: `Project ${new Date().toLocaleDateString()}`,
-      source_text: "",
-      active_lens: "Analytical"
-    };
-    const newDraft = {
-      id: `draft_${Date.now()}`,
-      session_id: newId,
-      content: ""
-    };
-    
-    saveToAPI({
-      sessions: [...data.sessions, newSession],
-      drafts: [...data.drafts, newDraft]
-    });
-    
-    setActiveSessionId(newId);
-  };
-
-  if (data.sessions.length === 0) return <div className="h-screen flex items-center justify-center bg-[#121212] text-zinc-500">Loading Database...</div>;
-
-  const session = data.sessions.find((s: any) => s.id === activeSessionId);
-  const nodes = data.scaffoldNodes.filter((n: any) => n.session_id === activeSessionId).sort((a: any, b: any) => a.order_index - b.order_index);
-  const draft = data.drafts.find((d: any) => d.session_id === activeSessionId);
+  if (!isMounted) {
+    return <div className="h-screen bg-[#121212]" />;
+  }
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden">
-      {/* Top Header */}
-      <header className="h-14 border-b border-[#222] bg-[#121212] flex items-center justify-between px-6 shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="h-6 w-6 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs">
-            T
+    <div className="h-screen overflow-hidden flex flex-col bg-[#121212] text-[#e0e0e0] font-sans">
+      {/* Header */}
+      <header className="h-14 border-b academic-border flex items-center justify-between px-4 shrink-0 bg-[#121212] z-10">
+        <div className="flex items-center gap-4">
+          <button className="text-zinc-400 hover:text-white transition-colors">
+            <span className="material-symbols-outlined">menu</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-white tracking-tight">Thoughtful</span>
+            <span className="text-zinc-500 text-sm">|</span>
+            <span className="text-zinc-500 text-sm font-light">Research &amp; Writing Workspace</span>
           </div>
-          <h1 className="text-sm font-semibold text-zinc-200 tracking-tight">Thoughtful</h1>
-          <span className="text-zinc-600 text-xs px-2 py-0.5 rounded-full border border-zinc-800 ml-2">Beta</span>
         </div>
-        <div className="flex items-center gap-4 text-sm text-zinc-400">
-          <button className="hover:text-white transition-colors">Workspace</button>
-          <button className="hover:text-white transition-colors">Library</button>
-          <button className="hover:text-white transition-colors">Settings</button>
-          <div className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700 ml-4 border-dashed relative">
-             <div className="absolute inset-0 bg-green-500 rounded-full h-2 w-2 top-0 right-0 translate-x-3 -translate-y-1"></div>
-          </div>
+        <div className="flex items-center gap-4">
+          <button className="text-zinc-400 hover:text-white transition-colors">
+            <span className="material-symbols-outlined text-[20px]">account_circle</span>
+          </button>
+          <button className="px-3 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-xs font-medium rounded transition-colors border border-white/5">
+            Shared
+          </button>
         </div>
       </header>
 
-      {/* Main Layout containing Sidebar and Work Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Workspace Explorer */}
-        <aside className="w-[200px] shrink-0 border-r border-[#222] bg-[#121212] flex flex-col z-10">
-          <div className="p-4 border-b border-[#222]">
-            <button 
-              onClick={createNewProject} 
-              className="w-full py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-white/5 text-zinc-200 rounded text-xs font-semibold uppercase tracking-wider transition-colors"
-            >
-              + New Project
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-            <h3 className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest px-3 py-2">Sessions</h3>
-            {data.sessions.map((s: any) => (
-              <button 
-                key={s.id}
-                onClick={() => setActiveSessionId(s.id)}
-                className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                  s.id === activeSessionId 
-                    ? 'bg-zinc-800 text-white font-medium' 
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'
-                }`}
-              >
-                <div className="truncate">{s.name || `Session ${s.id.split('_')[1] || s.id}`}</div>
-              </button>
-            ))}
-          </div>
-        </aside>
+      {/* Main Content Grid via PanelGroup */}
+      <main className="flex-1 flex overflow-hidden p-4">
+        <PanelGroup autoSaveId="thoughtful-layout" direction="horizontal" className="w-full h-full">
+          
+          {/* Section 1: The Reader */}
+          <Panel defaultSize={25} minSize={15} maxSize={40}>
+            <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">
+              <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">The Reader</h2>
+                <div className="flex items-center gap-2">
+                  <div className="relative group">
+                    <button className="flex items-center gap-2 text-xs text-zinc-300 bg-zinc-800/50 hover:bg-zinc-800 px-2 py-1 rounded transition-colors">
+                      <span>Perspective Lens: <span className="text-white">Analytical</span></span>
+                      <span className="material-symbols-outlined text-xs">expand_more</span>
+                    </button>
+                  </div>
+                </div>
+              </header>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 font-serif leading-relaxed text-[#c0c0c0] text-lg">
+                <p className="mb-6">The foundational principles of effective project management are rooted in comprehensive planning and strategic resource allocation.</p>
+                <p className="mb-6">
+                  <span className="perspective-highlight">The integration of artificial intelligence has revolutionized data-driven decision-making, enhancing predictive capabilities and risk mitigation strategies.</span>
+                </p>
+                <p className="mb-6">
+                  Collaborative platforms and agile methodologies continue to reshape team dynamics, necessitating adaptive leadership models that prioritize iterative progress.
+                </p>
+                <p className="mb-6">
+                  Furthermore, the emphasis on <span className="perspective-highlight">global sustainability goals</span> in modern project frameworks requires a holistic approach, balancing economic feasibility with environmental stewardship.
+                </p>
+                <p className="mb-6">
+                  Advanced risk management involves probabilistic modeling and <span className="perspective-highlight">continuous monitoring of external factors.</span>
+                </p>
+                <p className="mb-6">
+                  Ethical considerations in data usage and stakeholder engagement are increasingly critical.
+                </p>
+                <p className="mb-6">
+                  <span className="perspective-highlight">Professional certification paths</span> often validate mastery in these evolving domains.
+                </p>
+              </div>
+            </section>
+          </Panel>
 
-        {/* Main 3-Column Work Area */}
-        <main className="flex-1 flex overflow-hidden p-4 gap-4 bg-[#121212]">
-          <div className="w-1/4 min-w-[300px] h-full">
-            <Reader 
-              session={session} 
-              onChange={(updates: any) => {
-                const newSessions = data.sessions.map((s: any) => s.id === activeSessionId ? { ...s, ...updates } : s);
-                saveToAPI({ sessions: newSessions });
-              }} 
-              onSendToScaffolder={(text: string) => {
-                const newNode = { id: Date.now().toString(), session_id: activeSessionId, title: "", evidence_quote: text, student_claim: "", order_index: nodes?.length || 0 };
-                saveToAPI({ scaffoldNodes: [...data.scaffoldNodes, newNode] });
-              }}
-            />
-          </div>
-          <div className="w-1/4 min-w-[300px] h-full">
-            <Scaffolder 
-              nodes={nodes} 
-              onAddNode={() => {
-                const newNode = { id: Date.now().toString(), session_id: activeSessionId, title: "", evidence_quote: "", student_claim: "", order_index: nodes?.length || 0 };
-                saveToAPI({ scaffoldNodes: [...data.scaffoldNodes, newNode] });
-              }}
-              onUpdateNode={(nodeId: string, updates: any) => {
-                const newNodes = data.scaffoldNodes.map((n: any) => n.id === nodeId ? { ...n, ...updates } : n);
-                saveToAPI({ scaffoldNodes: newNodes });
-              }}
-            />
-          </div>
-          <div className="w-2/4 min-w-[400px] h-full">
-            <Editor 
-              draft={draft}
-              nodesCount={nodes?.length || 0}
-              onChange={(newContent: string) => {
-                const newDrafts = data.drafts.map((d: any) => d.session_id === activeSessionId ? { ...d, content: newContent } : d);
-                saveToAPI({ drafts: newDrafts });
-              }}
-            />
-          </div>
-        </main>
-      </div>
+          {/* Grab Bar 1 */}
+          <PanelResizeHandle className="w-4 group cursor-col-resize flex justify-center outline-none">
+            <div className="w-[1px] h-full bg-[#2d2d2d] group-hover:bg-[#4a4a4a] group-focus:bg-rose-400/50 transition-colors duration-200"></div>
+          </PanelResizeHandle>
+
+          {/* Section 2: The Scaffolder */}
+          <Panel defaultSize={25} minSize={15} maxSize={40}>
+            <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">
+              <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">The Scaffolder</h2>
+                <button className="text-zinc-500 hover:text-white">
+                  <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                </button>
+              </header>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+                {/* Thought Card 1 */}
+                <div className="thought-card p-4 rounded-md space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-tighter">Source Link: p. 42</span>
+                  </div>
+                  <p className="text-sm italic text-zinc-300 leading-tight">&quot;Evidence: ...collaborative group work and a final exam to demonstrate their mastery of analytical tools...&quot;</p>
+                  <div className="pt-2 border-t border-[#333]">
+                    <p className="text-sm text-zinc-100 font-medium"><span className="text-zinc-500 font-normal">My Claim:</span> This suggests a shift towards experiential learning over purely theoretical reading, requiring practical application of concepts in team environments.</p>
+                  </div>
+                </div>
+                {/* Thought Card 2 */}
+                <div className="thought-card p-4 rounded-md space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-tighter">Source Link: p. 58</span>
+                  </div>
+                  <p className="text-sm italic text-zinc-300 leading-tight">&quot;Evidence: ...modern industry trends, such as the integration of artificial intelligence...&quot;</p>
+                  <div className="pt-2 border-t border-[#333]">
+                    <p className="text-sm text-zinc-100 font-medium"><span className="text-zinc-500 font-normal">My Claim:</span> AI is not just an auxiliary tool but a core component of modern project lifecycles, demanding new skill sets.</p>
+                  </div>
+                </div>
+                {/* Add Card Button */}
+                <button className="w-full py-3 border border-dashed border-zinc-700 rounded-md text-xs text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-all flex items-center justify-center gap-2">
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  Add Thought Card
+                </button>
+              </div>
+            </section>
+          </Panel>
+
+          {/* Grab Bar 2 */}
+          <PanelResizeHandle className="w-4 group cursor-col-resize flex justify-center outline-none">
+            <div className="w-[1px] h-full bg-[#2d2d2d] group-hover:bg-[#4a4a4a] group-focus:bg-rose-400/50 transition-colors duration-200"></div>
+          </PanelResizeHandle>
+
+          {/* Section 3: The Editor */}
+          <Panel defaultSize={50} minSize={30}>
+            <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">
+              <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">The Editor</h2>
+              </header>
+              <div className="flex-1 flex overflow-hidden">
+                {/* Main Editor Area */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-8 font-serif leading-relaxed text-[#f0f0f0] text-lg editor-container outline-none" contentEditable={true} suppressContentEditableWarning={true}>
+                  <p className="mb-6">The evolution of project management paradigms reflects a broader shift towards data-driven and socially responsible frameworks.</p>
+                  <p className="mb-6">
+                    As indicated by recent academic discourse, the effective integration of <span className="text-rose-400/80 underline decoration-rose-400/30">artificial intelligence</span> and the prioritization of <span className="text-rose-400/80 underline decoration-rose-400/30">global sustainability goals</span> are now foundational to modern project execution.
+                  </p>
+                  <p className="mb-6">
+                    This requires project leaders to not only master technical analytical tools but also to foster <span className="text-rose-400/80 underline decoration-rose-400/30">adaptive, collaborative team</span> environments that can navigate complexity.
+                  </p>
+                  <p className="mb-6">
+                    Furthermore, the professional development landscape is adapting, with certification paths increasingly emphasizing these contemporary competencies.
+                  </p>
+                </div>
+                {/* Provocation Margin */}
+                <div className="provocation-margin shrink-0 flex flex-col items-center py-8 gap-12 text-zinc-600 relative">
+                  <div className="absolute top-0 right-0 h-full w-[40px] flex flex-col items-center">
+                    {/* Annotation markers aligned with marked text */}
+                    <div className="h-8 w-px bg-zinc-800 absolute top-4 right-[20px]"></div>
+                    <span className="text-[10px] absolute top-4 -right-1 rotate-90 whitespace-nowrap opacity-40">80px</span>
+                    <div className="mt-40 space-y-36 flex flex-col items-center">
+                      <button className="hover:text-rose-400 transition-colors" title="Clarify terminology">
+                        <span className="material-symbols-outlined text-[20px]">error</span>
+                      </button>
+                      <button className="hover:text-rose-400 transition-colors" title="Missing evidence">
+                        <span className="material-symbols-outlined text-[20px]">error</span>
+                      </button>
+                      <button className="hover:text-rose-400 transition-colors" title="Weak transition">
+                        <span className="material-symbols-outlined text-[20px]">error</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* Editor Footer */}
+              <footer className="h-8 border-t academic-border px-4 flex items-center justify-between shrink-0 bg-[#141414]">
+                <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-medium">
+                  <span>Word Count: 98</span>
+                  <span>Last Saved: Just now.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500/50"></div>
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">Cloud Sync Active</span>
+                </div>
+              </footer>
+            </section>
+          </Panel>
+
+        </PanelGroup>
+      </main>
     </div>
   );
 }
