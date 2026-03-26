@@ -62,6 +62,14 @@
       "title": "",
       "student_claim": "",
       "order_index": 5
+    },
+    {
+      "id": "node_1774526473042",
+      "session_id": "default-session-1",
+      "evidence_quote": "reading",
+      "title": "",
+      "student_claim": "",
+      "order_index": 6
     }
   ],
   "provocations": [],

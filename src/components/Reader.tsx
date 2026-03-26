@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import SourceUpload from './SourceUpload';
+import InsightInspector from './InsightInspector';
 
 type LensType = 'None' | 'Skeptic' | 'Teacher' | 'Auditor';
 
@@ -418,47 +419,12 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
         </div>
       )}
 
-      {/* ── Lens Hotspot Popover (unchanged) ──────────────────────────────── */}
+      {/* ── Movable Insight Inspector ───────────────────────────────────────── */}
       {activeHighlight && !isEditing && (
-        <div className="absolute bottom-0 left-0 right-0 bg-[#1c1c1c] border-t border-[#333] z-20 font-sans shadow-2xl flex flex-col max-h-[55%]">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#2a2a2a] shrink-0">
-            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
-              Lens: {activeLens}
-            </span>
-            <button
-              onClick={() => setActiveHighlight(null)}
-              className="text-zinc-600 hover:text-zinc-300 transition-colors ml-auto"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-          </div>
-
-          <div className="overflow-y-auto custom-scrollbar px-5 py-4 flex flex-col gap-5">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-[16px] text-yellow-400">lightbulb</span>
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-yellow-400">The Concept</h3>
-              </div>
-              <p className="text-[13.5px] leading-relaxed text-zinc-200">{activeHighlight.insight}</p>
-            </div>
-            <div className="h-px bg-[#2d2d2d]" />
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-[16px] text-sky-400">child_care</span>
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-400">Simple Example (ELI10)</h3>
-              </div>
-              <p className="text-[13.5px] leading-relaxed text-zinc-300 italic">{activeHighlight.example}</p>
-            </div>
-            <div className="h-px bg-[#2d2d2d]" />
-            <div className="pb-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-[16px] text-rose-400">psychology_alt</span>
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-400">The Challenge</h3>
-              </div>
-              <p className="text-[13.5px] leading-relaxed text-zinc-200">{activeHighlight.challenge}</p>
-            </div>
-          </div>
-        </div>
+        <InsightInspector
+          highlight={activeHighlight}
+          onClose={() => setActiveHighlight(null)}
+        />
       )}
 
       {/* ── Source Upload Modal ─────────────────────────────────────────────── */}
