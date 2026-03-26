@@ -22,6 +22,7 @@ interface MemoryCardProps {
   card: MemoryCardData;
   onDismiss: (id: string) => void;
   onApply: (card: MemoryCardData) => void;
+  onSelect: (targetSentence: string) => void;
 }
 
 // ─── Card config ─────────────────────────────────────────────────────────────
@@ -29,43 +30,51 @@ interface MemoryCardProps {
 const CONFIG: Record<MemoryCardType, {
   label: string;
   icon: string;
-  accent: string;      // Tailwind border-l color
+  accent: string;
   iconColor: string;
   headerBg: string;
+  glowColor: string;
 }> = {
+  // RED — Fact-Check / Logic errors
   logic_check: {
-    label: "Logic Check",
-    icon: "psychology_alt",
-    accent: "border-rose-500",
-    iconColor: "text-rose-400",
-    headerBg: "bg-rose-950/40",
+    label: "Fact Check",
+    icon: "gpp_maybe",
+    accent: "border-red-500",
+    iconColor: "text-red-400",
+    headerBg: "bg-red-950/40",
+    glowColor: "shadow-[0_0_12px_rgba(239,68,68,0.18)]",
   },
+  // BLUE — Memory Recall / Evidence gaps
   evidence_gap: {
-    label: "Evidence Gap",
-    icon: "search",
-    accent: "border-amber-400",
-    iconColor: "text-amber-400",
-    headerBg: "bg-amber-950/30",
+    label: "Memory Recall",
+    icon: "menu_book",
+    accent: "border-blue-400",
+    iconColor: "text-blue-400",
+    headerBg: "bg-blue-950/30",
+    glowColor: "shadow-[0_0_12px_rgba(96,165,250,0.18)]",
   },
+  // YELLOW — ELI10 / Lemonade Stand simplification
   better_way: {
-    label: "Better Way",
-    icon: "lightbulb",
-    accent: "border-sky-400",
-    iconColor: "text-sky-400",
-    headerBg: "bg-sky-950/30",
+    label: "Lemonade Stand",
+    icon: "child_care",
+    accent: "border-yellow-400",
+    iconColor: "text-yellow-400",
+    headerBg: "bg-yellow-950/20",
+    glowColor: "shadow-[0_0_12px_rgba(250,204,21,0.15)]",
   },
   sentence_improver: {
-    label: "Simplify",
+    label: "Simplify It",
     icon: "edit_note",
-    accent: "border-violet-400",
-    iconColor: "text-violet-400",
-    headerBg: "bg-violet-950/30",
+    accent: "border-yellow-400",
+    iconColor: "text-yellow-400",
+    headerBg: "bg-yellow-950/20",
+    glowColor: "shadow-[0_0_12px_rgba(250,204,21,0.15)]",
   },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MemoryCard({ card, onDismiss, onApply }: MemoryCardProps) {
+export default function MemoryCard({ card, onDismiss, onApply, onSelect }: MemoryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const cfg = CONFIG[card.type];
 
@@ -76,7 +85,7 @@ export default function MemoryCard({ card, onDismiss, onApply }: MemoryCardProps
       className={`
         w-full rounded-xl border-l-2 ${cfg.accent}
         bg-[#1c1c1e]/90 backdrop-blur-sm border border-white/[0.06]
-        shadow-[0_8px_32px_rgba(0,0,0,0.5)]
+        ${cfg.glowColor}
         flex flex-col overflow-hidden
         transition-all duration-200 hover:border-white/[0.10]
       `}
@@ -102,10 +111,14 @@ export default function MemoryCard({ card, onDismiss, onApply }: MemoryCardProps
 
       {/* Body */}
       <div className="px-3 py-2.5 flex flex-col gap-2">
-        {/* Headline */}
-        <p className="text-[11px] font-semibold text-zinc-200 leading-snug">
+        {/* Headline — clicking highlights the sentence in the editor */}
+        <button
+          onClick={() => card.targetSentence && onSelect(card.targetSentence)}
+          className="text-left text-[11px] font-semibold text-zinc-200 leading-snug hover:text-white transition-colors"
+          title="Click to highlight sentence in editor"
+        >
           {card.headline}
-        </p>
+        </button>
 
         {/* Suggestion */}
         <p className="text-[11px] text-zinc-400 leading-relaxed">

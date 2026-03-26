@@ -47,19 +47,22 @@ ${formattedNodes || "None provided."}
 === CURRENT DRAFT (focus on the last 1-3 sentences) ===
 "${currentDraft}"
 
-=== YOUR TASK ===
-Analyse the LAST 1-3 sentences of the draft. Find up to 3 high-value interventions from this priority list:
+=== STEP 1 — IDENTIFY THE SUBJECT ===
+First, silently identify which Scaffold Note or Source paragraph the student's last sentence is ABOUT.
+This anchors your feedback to the right piece of evidence.
 
-1. LOGIC_CHECK — The draft sentence contradicts or ignores a Scaffold Note claim. Point it out directly.
-   Suggestion format: "Your note on [Node Title] says [Claim], but your sentence says the opposite. Which is right?"
+=== STEP 2 — FIND UP TO 3 HIGH-VALUE INTERVENTIONS ===
 
-2. EVIDENCE_GAP — The paragraph makes a broad claim, but there is a specific fact in the Source Content that would make it much stronger.
-   Suggestion format: "This is thin. Remember [Fact] from your reading? It fits perfectly here."
+1. LOGIC_CHECK (Red card) — The draft contradicts or ignores a Scaffold Note claim.
+   Suggestion format: "Your note on '[Node Title]' says [Claim], but your sentence says the opposite. Which is right?"
 
-3. BETTER_WAY — The student is explaining something complex. There is an ELI10 simplification that would make the argument clearer.
-   Suggestion format: "You're overcomplicating this. Would it be clearer to say it like [ELI10]?"
+2. EVIDENCE_GAP (Blue card) — The paragraph is too general. A specific fact from the Source would make it much stronger.
+   Suggestion format: "This is thin. Remember [Fact] from your reading? It would fit perfectly here."
 
-4. SENTENCE_IMPROVER — A specific sentence is over 30 words long or uses unnecessary filler phrases.
+3. BETTER_WAY (Yellow card — Lemonade Stand) — The student is explaining something complex. Give a 1-sentence 'Lemonade Stand' version that explains the same idea in everyday language a child would use to explain a lemonade stand.
+   Suggestion format: "You're overcomplicating this. Here's the Lemonade Stand version: [simple version]."
+
+4. SENTENCE_IMPROVER (Yellow card) — A specific sentence is over 30 words. Ask the student to cut it to 10.
    Suggestion format: "This sentence is [N] words. Can you say the same thing in 10 words? Simple is powerful."
 
 Return ONLY the interventions that are genuinely useful. If the draft is excellent, return an empty cards array.
@@ -73,7 +76,7 @@ Respond ONLY with a valid JSON object matching this exact schema:
       "targetSentence": "The exact sentence from the draft this card refers to (or last sentence)",
       "headline": "Short card title, max 6 words",
       "suggestion": "Your specific proactive suggestion (1-2 sentences maximum)",
-      "eli10Example": "A simple ELI10 analogy if relevant to this card (or empty string)",
+      "eli10Example": "A Lemonade Stand analogy if relevant (or empty string)",
       "nodeTitle": "Relevant scaffold node title if applicable (or empty string)",
       "nodeEvidence": "Evidence quote from the node if applicable (or empty string)",
       "sourceFact": "A specific fact from the Source Content if applicable (or empty string)"

@@ -52,6 +52,7 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
   const [isChecking, setIsChecking]   = useState(false);
   const [wordCount, setWordCount]     = useState(0);
 
+  const textareaRef     = useRef<HTMLTextAreaElement>(null);
   const pauseTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFetching      = useRef(false);
   const lastCallTime    = useRef(0);          // timestamp of last completed call
@@ -140,6 +141,19 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
   const dismissCard = (id: string) =>
     setCards(prev => prev.filter(c => c.id !== id));
 
+  // Click-to-highlight: select the target sentence in the textarea
+  const handleSelectSentence = (targetSentence: string) => {
+    const el = textareaRef.current;
+    if (!el || !targetSentence) return;
+    const idx = content.indexOf(targetSentence);
+    if (idx === -1) return;
+    el.focus();
+    el.setSelectionRange(idx, idx + targetSentence.length);
+    const lineHeight = parseInt(getComputedStyle(el).lineHeight || '28', 10);
+    const linesAbove = content.slice(0, idx).split('\n').length - 1;
+    el.scrollTop = linesAbove * lineHeight;
+  };
+
   // Dismiss overlay on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOverlayCard(null); };
@@ -187,6 +201,7 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
               ? "text-[#f0f0f0] placeholder:text-zinc-600"
               : "text-zinc-600 pointer-events-none select-none"
           }`}
+          ref={textareaRef}
           value={content}
           onChange={handleChange}
           readOnly={!isUnlocked}
@@ -206,6 +221,7 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
               card={card}
               onDismiss={dismissCard}
               onApply={setOverlayCard}
+              onSelect={handleSelectSentence}
             />
           ))}
         </div>
