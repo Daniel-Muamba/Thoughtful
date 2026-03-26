@@ -1,218 +1,163 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState } from 'react';
 
-export default function Reader({ session, onChange, onSendToScaffolder }: any) {
-  const [isEditing, setIsEditing] = useState(!session?.source_text?.trim());
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [highlights, setHighlights] = useState<any[]>([]);
-  const [activeQuestion, setActiveQuestion] = useState<{ id: string, text: string } | null>(null);
-  const [selectionRange, setSelectionRange] = useState<{ text: string, top: number, left: number } | null>(null);
+type LensType = 'None' | 'Skeptic' | 'Teacher' | 'Auditor';
 
-  const lenses = ["Analytical", "The Skeptic", "The Exam-Maker", "The Business Auditor", "The Philosopher", "The First-Principles Thinker", "The Devil's Advocate"];
-  const currentLens = session?.active_lens || "Analytical";
-  const sourceText = session?.source_text || "";
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
+interface HighlightDef {
+  textToHighlight: string;
+  insight: string;
+  challenge: string;
+}
 
-  // Auto-analyze when returning to Read mode if we already have text
-  useEffect(() => {
-    if (!isEditing && sourceText.trim().length > 0) {
-      analyzeText(sourceText, currentLens);
+const LENSES: Record<string, HighlightDef[]> = {
+  Skeptic: [
+    {
+      textToHighlight: 'always',
+      insight: "This uses 'absolute' language like 'always' or 'never'.",
+      challenge: "Is there a specific case where this rule would fail?"
+    },
+    {
+      textToHighlight: 'never',
+      insight: "This uses 'absolute' language like 'always' or 'never'.",
+      challenge: "Is there a specific case where this rule would fail?"
     }
-  }, [isEditing, currentLens]); // Re-run when lens changes
-
-  const cycleLens = () => {
-    // Hide current popover when switching lenses to avoid desync
-    setActiveQuestion(null);
-    const currentIdx = lenses.indexOf(currentLens);
-    const nextLens = lenses[(currentIdx + 1) % lenses.length];
-    onChange?.({ active_lens: nextLens });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.text) {
-        onChange?.({ source_text: data.text });
-        setIsEditing(false); // Switch to Read Mode automatically
-      }
-    } catch (err) {
-      console.error("Upload error", err);
-    } finally {
-      setIsUploading(false);
-      // Reset input value to allow uploading the same file again if needed
-      if (fileInputRef.current) fileInputRef.current.value = '';
+  ],
+  Teacher: [
+    {
+      textToHighlight: 'core concept',
+      insight: "This is a core concept that often appears on final exams.",
+      challenge: "How would you rewrite this sentence using your own words?"
     }
-  };
+  ],
+  Auditor: [
+    {
+      textToHighlight: 'efficiency',
+      insight: "Efficiency claims should be backed by measurable metrics.",
+      challenge: "What data points could prove this efficiency?"
+    }
+  ]
+};
 
-  const analyzeText = async (text: string, lens: string) => {
-    setIsAnalyzing(true);
-    setHighlights([]);
-    setActiveQuestion(null);
+const DEFAULT_TEXT = "The foundational principles of effective project management are rooted in comprehensive planning. It is always necessary to maintain a strict schedule, as delays will never be tolerated. This is a core concept that you must understand to improve efficiency.";
+
+export default function Reader() {
+  const [text, setText] = useState(DEFAULT_TEXT);
+  const [isEditing, setIsEditing] = useState(false);
+  const [activeLens, setActiveLens] = useState<LensType>('None');
+  const [activeHighlight, setActiveHighlight] = useState<HighlightDef | null>(null);
+
+  const renderHighlightedText = () => {
+    if (activeLens === 'None' || !LENSES[activeLens]) return <p className="whitespace-pre-wrap">{text}</p>;
     
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_text: text, active_lens: lens })
-      });
-      const data = await res.json();
-      if (data.highlights) {
-        setHighlights(data.highlights);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Helper to accurately map strings to spans
-  const renderReadMode = () => {
-    if (isAnalyzing) return <div className="text-zinc-500 italic p-6">Analyzing with {currentLens} lens...</div>;
-    if (!sourceText) return <div className="text-zinc-600 italic p-6">Text area is empty. Switch to Edit Mode or upload a PDF.</div>;
-
-    // We split by sentences matching our mock API logic
-    const sentences = sourceText.match(/[^.!?]+[.!?]+/g) || [sourceText];
-
+    const highlights = LENSES[activeLens];
+    const regexStr = highlights.map(h => h.textToHighlight).join('|');
+    const regex = new RegExp(`(${regexStr})`, 'gi');
+    
+    const parts = text.split(regex);
+    
     return (
-      <div 
-        className="p-6 serif-font leading-relaxed text-[#c0c0c0] text-lg space-y-4"
-        onMouseUp={(e) => {
-          const selection = window.getSelection();
-          const text = selection?.toString().trim();
-          if (text && text.length > 3) {
-            setSelectionRange({ text, top: e.clientY - 45, left: e.clientX });
-          } else {
-            setSelectionRange(null);
-          }
-        }}
-      >
-        {sentences.map((sentence: string, sIdx: number) => {
-          const match = highlights.find((h) => h.text_snippet === sentence.trim());
-          
+      <p className="whitespace-pre-wrap leading-relaxed space-y-4">
+        {parts.map((part, i) => {
+          const lowerPart = part.toLowerCase();
+          const match = highlights.find(h => h.textToHighlight === lowerPart);
           if (match) {
             return (
               <span 
-                key={sIdx}
-                onClick={() => setActiveQuestion({ id: match.id, text: match.question })}
-                className="perspective-highlight relative group"
+                key={i} 
+                className="perspective-highlight cursor-pointer relative text-yellow-200"
+                onClick={() => setActiveHighlight(match)}
               >
-                {sentence}
-                {/* Embedded Popover Box */}
-                {activeQuestion?.id === match.id && (
-                  <div className="absolute left-1/2 -translateX-1/2 bottom-full mb-2 w-64 p-4 z-50 rounded-lg border border-yellow-600/50 bg-[#1a1a1a] shadow-xl text-yellow-100 text-sm font-sans normal-case leading-snug cursor-default" onClick={(e) => e.stopPropagation()}>
-                    <div className="font-semibold text-yellow-500 mb-1 flex items-center justify-between">
-                      Provocation
-                      <button onClick={(e) => { e.stopPropagation(); setActiveQuestion(null); }} className="text-zinc-500 hover:text-white material-symbols-outlined text-[14px]">close</button>
-                    </div>
-                    {activeQuestion?.text}
-                    {/* Tooltip caret */}
-                    <div className="absolute top-full left-10 w-3 h-3 border-r border-b border-yellow-600/50 bg-[#1a1a1a] rotate-45 -mt-1.5"></div>
-                  </div>
-                )}
+                {part}
               </span>
             );
           }
-          return <span key={sIdx}>{sentence}</span>;
+          return <span key={i}>{part}</span>;
         })}
-
-        {/* Floating Send Button */}
-        {selectionRange && (
-          <div 
-            className="fixed z-50 transform -translate-x-1/2" 
-            style={{ top: selectionRange.top, left: selectionRange.left }}
-          >
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onSendToScaffolder?.(selectionRange.text);
-                setSelectionRange(null);
-                window.getSelection()?.removeAllRanges();
-              }}
-              className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded shadow-lg flex items-center gap-1 font-sans"
-            >
-              <span className="material-symbols-outlined text-[14px]">send</span>
-              Send to Scaffolder
-            </button>
-          </div>
-        )}
-      </div>
+      </p>
     );
   };
 
   return (
-    <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden">
+    <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden relative">
       <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">The Reader</h2>
         <div className="flex items-center gap-2">
-          {/* Upload PDF */}
-          <input 
-            type="file" 
-            accept="application/pdf" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload}
-            className="hidden" 
-            aria-label="Upload PDF Document"
-            title="Upload PDF Document"
-          />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[14px]">upload_file</span>
-            {isUploading ? "Uploading..." : "Add Source"}
-          </button>
-
-          {/* Edit / Read Mode Toggle */}
-          <button 
-            onClick={() => setIsEditing(!isEditing)}
-            className={`px-3 py-1 text-xs rounded transition-colors ${
-              isEditing ? "bg-blue-900/40 text-blue-300 border border-blue-800/50" : "text-zinc-400 hover:bg-zinc-800"
-            }`}
-          >
-            {isEditing ? "Save & Analyze" : "Edit Text"}
-          </button>
-          
-          <div className="relative group">
+          {isEditing ? (
             <button 
-              onClick={cycleLens}
-              className="flex items-center gap-2 text-xs text-zinc-300 bg-zinc-800/50 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
+               className="text-[11px] font-medium uppercase tracking-wider text-zinc-300 bg-zinc-800/50 hover:bg-zinc-800 px-3 py-1.5 rounded transition-colors"
+               onClick={() => setIsEditing(false)}
             >
-              <span>Perspective Lens: <span className="text-white">{currentLens}</span></span>
-              <span className="material-symbols-outlined text-xs">expand_more</span>
+              Done Editing
             </button>
+          ) : (
+            <button 
+               className="text-[11px] font-medium uppercase tracking-wider text-zinc-300 bg-zinc-800/50 hover:bg-zinc-800 px-3 py-1.5 rounded transition-colors flex items-center gap-1.5"
+               onClick={() => { setIsEditing(true); setActiveHighlight(null); }}
+            >
+              <span className="material-symbols-outlined text-[14px]">edit</span>
+              Edit
+            </button>
+          )}
+
+          <div className="relative group flex items-center">
+            <select 
+              className="text-xs text-zinc-300 bg-zinc-800/50 hover:bg-zinc-800 px-3 py-1.5 rounded transition-colors outline-none cursor-pointer appearance-none pr-8 font-medium"
+              value={activeLens}
+              aria-label="Perspective Lens"
+              title="Perspective Lens"
+              onChange={(e) => {
+                setActiveLens(e.target.value as LensType);
+                setActiveHighlight(null);
+                if (e.target.value !== 'None') setIsEditing(false); // force reading mode when picking a lens
+              }}
+            >
+              <option value="None">Lens: None</option>
+              <option value="Skeptic">Lens: Skeptic</option>
+              <option value="Teacher">Lens: Teacher</option>
+              <option value="Auditor">Lens: Auditor</option>
+            </select>
+            <span className="material-symbols-outlined text-[16px] absolute right-2.5 pointer-events-none text-zinc-400">expand_more</span>
           </div>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 font-serif text-[#c0c0c0] text-lg bg-[#181818]">
         {isEditing ? (
-          <textarea 
-            className="w-full h-full resize-none bg-transparent p-6 serif-font leading-relaxed text-[#c0c0c0] text-lg focus:outline-none"
-            placeholder="Paste text or upload PDF source material here to begin active reading..."
-            value={sourceText}
-            onChange={(e) => onChange?.({ source_text: e.target.value })}
+          <textarea
+            className="w-full h-full bg-transparent resize-none outline-none font-serif text-lg text-zinc-200 leading-relaxed placeholder:text-zinc-600 custom-scrollbar"
+            placeholder="Paste your reading text here..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
           />
         ) : (
-          renderReadMode()
+          renderHighlightedText()
         )}
       </div>
+
+      {/* Popover for active highlight */}
+      {activeHighlight && !isEditing && (
+        <div className="absolute bottom-6 left-6 right-6 bg-[#222222] border border-[#3a3a3a] rounded-lg p-5 shadow-2xl z-20 flex flex-col gap-4 font-sans ring-1 ring-black/50">
+          <div className="flex justify-between items-start">
+            <h3 className="text-[13px] uppercase tracking-widest font-bold text-yellow-500 flex items-center gap-2">
+               <span className="material-symbols-outlined text-[18px]">lightbulb</span>
+               Insight
+            </h3>
+            <button onClick={() => setActiveHighlight(null)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+          <p className="text-[15px] leading-relaxed text-zinc-300 -mt-2">{activeHighlight.insight}</p>
+          
+          <div className="h-px w-full bg-[#3a3a3a] my-1" />
+          
+          <h3 className="text-[13px] uppercase tracking-widest font-bold text-rose-400 flex items-center gap-2">
+             <span className="material-symbols-outlined text-[18px]">psychology_alt</span>
+             Challenge
+          </h3>
+          <p className="text-[15px] leading-relaxed text-zinc-300 -mt-2">{activeHighlight.challenge}</p>
+        </div>
+      )}
     </section>
   );
 }
-
-
