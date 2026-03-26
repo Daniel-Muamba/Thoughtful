@@ -5,6 +5,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Reader from "@/components/Reader";
 import Scaffolder from "@/components/Scaffolder";
 import Editor from "@/components/Editor";
+import Sidebar from "@/components/Sidebar";
 import type { ScaffoldNode } from "@/lib/db";
 
 const GATEKEEPER_THRESHOLD = 3;
@@ -12,6 +13,8 @@ const GATEKEEPER_THRESHOLD = 3;
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [nodes, setNodes] = useState<ScaffoldNode[]>([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   // Count nodes where both title and claim are filled
   const completedCount = nodes.filter(
@@ -19,25 +22,39 @@ export default function Home() {
   ).length;
   const isEditorUnlocked = completedCount >= GATEKEEPER_THRESHOLD;
 
-  // Load existing nodes on mount
+  // Load session on mount
   useEffect(() => {
     setIsMounted(true);
-    fetch("/api/scaffold")
+    fetch("/api/session")
       .then((r) => r.json())
-      .then((data: ScaffoldNode[]) => setNodes(Array.isArray(data) ? data : []))
+      .then((data) => {
+        if (data && data.sessions && data.sessions.length > 0) {
+          setActiveSessionId(data.sessions[0].id);
+        }
+      })
       .catch(console.error);
   }, []);
 
+  // Load existing nodes when activeSessionId changes
+  useEffect(() => {
+    if (!activeSessionId) return;
+    fetch(`/api/scaffold?sessionId=${activeSessionId}`)
+      .then((r) => r.json())
+      .then((data: ScaffoldNode[]) => setNodes(Array.isArray(data) ? data : []))
+      .catch(console.error);
+  }, [activeSessionId]);
+
   // Called by Reader when user selects text and clicks "Add to Scaffold"
   const handleAddToScaffold = useCallback(async (quote: string) => {
+    if (!activeSessionId) return;
     const res = await fetch("/api/scaffold", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evidence_quote: quote }),
+      body: JSON.stringify({ evidence_quote: quote, session_id: activeSessionId }),
     });
     const newNode: ScaffoldNode = await res.json();
     setNodes((prev) => [...prev, newNode]);
-  }, []);
+  }, [activeSessionId]);
 
   // Called by Scaffolder on field blur
   const handleUpdateNode = useCallback(
@@ -71,10 +88,17 @@ export default function Home() {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-[#121212] text-[#e0e0e0] font-sans">
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+        activeSessionId={activeSessionId}
+        onSelectSession={(id) => setActiveSessionId(id)}
+      />
+
       {/* Header */}
       <header className="h-14 border-b academic-border flex items-center justify-between px-4 shrink-0 bg-[#121212] z-10">
         <div className="flex items-center gap-4">
-          <button className="text-zinc-400 hover:text-white transition-colors">
+          <button onClick={() => setIsSidebarOpen(true)} className="text-zinc-400 hover:text-white transition-colors">
             <span className="material-symbols-outlined">menu</span>
           </button>
           <div className="flex items-center gap-2">
@@ -99,7 +123,7 @@ export default function Home() {
 
           {/* Section 1: The Reader */}
           <Panel defaultSize={25} minSize={15} maxSize={40}>
-            <Reader onAddToScaffold={handleAddToScaffold} />
+            <Reader activeSessionId={activeSessionId} onAddToScaffold={handleAddToScaffold} />
           </Panel>
 
           {/* Grab Bar 1 */}

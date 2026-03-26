@@ -2,10 +2,19 @@ import { NextResponse } from 'next/server';
 import { readDB, writeDB } from '@/lib/db';
 import type { ScaffoldNode } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+    
     const data = readDB();
-    return NextResponse.json(data.scaffoldNodes ?? []);
+    let nodes = data.scaffoldNodes ?? [];
+    
+    if (sessionId) {
+      nodes = nodes.filter(n => n.session_id === sessionId);
+    }
+    
+    return NextResponse.json(nodes);
   } catch {
     return NextResponse.json({ error: 'Failed to read nodes' }, { status: 500 });
   }

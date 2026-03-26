@@ -28,61 +28,25 @@ interface ELI10State {
 }
 
 interface ReaderProps {
+  activeSessionId: string | null;
   onAddToScaffold?: (quote: string) => void;
 }
-
-// ─── Lens Definitions ────────────────────────────────────────────────────────
-
-const LENSES: Record<string, HighlightDef[]> = {
-  Skeptic: [
-    {
-      textToHighlight: 'always',
-      insight: "This sentence uses 'absolute' language — words like 'always' or 'never' that leave no room for exceptions.",
-      example: "Imagine if you said, 'I ALWAYS win at rock-paper-scissors.' Someone would only need to beat you once to prove you wrong!",
-      challenge: "Is there a specific case where this rule would fail? What would it take to break this 'always'?"
-    },
-    {
-      textToHighlight: 'never',
-      insight: "This sentence uses 'absolute' language — words like 'always' or 'never' that leave no room for exceptions.",
-      example: "Imagine if you said, 'It will NEVER rain on my birthday.' You'd only need one rainy birthday to prove that wrong!",
-      challenge: "Can you think of even one exception to this 'never'? What does that do to the argument's strength?"
-    }
-  ],
-  Teacher: [
-    {
-      textToHighlight: 'core concept',
-      insight: "This is a foundational idea — the kind that everything else in the subject is built upon.",
-      example: "Think of it like learning to ride a bike. Before tricks, you must learn to balance. A 'core concept' is that balance.",
-      challenge: "How would you rewrite this sentence using your own words — without using any of the author's original phrasing?"
-    }
-  ],
-  Auditor: [
-    {
-      textToHighlight: 'efficiency',
-      insight: "This is about 'Opportunity Cost' — when you choose one path, you give up the benefits of the path not taken.",
-      example: "If you have $5 and buy a comic book, the 'opportunity cost' is the giant chocolate bar you didn't buy.",
-      challenge: "In this text, what is the author giving up by focusing only on efficiency?"
-    },
-    {
-      textToHighlight: 'profit',
-      insight: "Profit is the financial gain after all costs are deducted. But profit is never 'free' — it always comes at someone's expense.",
-      example: "Your lemonade stand made $10, but you spent $4 on lemons and sugar. Your profit is $6. But what about hidden costs?",
-      challenge: "In this article, what is the author giving up by focusing only on profit instead of the environment?"
-    }
-  ]
-};
 
 const DEFAULT_TEXT =
   "The foundational principles of effective project management demand efficiency at all times. It is always necessary to maintain a strict schedule, as delays will never be tolerated. Understanding this core concept is what separates good managers from great ones. The drive for profit often shapes these decisions more than any other factor.";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function Reader({ onAddToScaffold }: ReaderProps) {
+export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps) {
   const [text, setText] = useState(DEFAULT_TEXT);
   const [isEditing, setIsEditing] = useState(false);
   const [activeLens, setActiveLens] = useState<LensType>('None');
   const [activeHighlight, setActiveHighlight] = useState<HighlightDef | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  
+  // Dynamic Hotspots
+  const [dynamicHotspots, setDynamicHotspots] = useState<HighlightDef[]>([]);
+  const [isFetchingHotspots, setIsFetchingHotspots] = useState(false);
 
   // Selection toolbar
   const [selRect, setSelRect] = useState<SelectionRect | null>(null);
@@ -90,21 +54,22 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
 
   const containerRef = useRef<HTMLElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const hasLoadedRef = useRef(false);
 
-  // ── Load source text on mount ──────────────────────────────────────────────
+  // ── Load source text on mount or session change ────────────────────────────
   useEffect(() => {
-    if (hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
+    if (!activeSessionId) return;
     fetch('/api/session')
       .then((res) => res.json())
       .then((data) => {
-        if (data?.sessions?.[0]?.source_text) {
-          setText(data.sessions[0].source_text);
+        const session = data?.sessions?.find((s: any) => s.id === activeSessionId);
+        if (session && session.source_text) {
+          setText(session.source_text);
+        } else {
+          setText(""); // clear text if new session
         }
       })
       .catch(() => {});
-  }, []);
+  }, [activeSessionId]);
 
   // ── Handle importing text from SourceUpload ────────────────────────────────
   const handleImport = async (importedText: string) => {
@@ -112,21 +77,17 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
     setIsUploadOpen(false);
     
     // Save to persistence
+    if (!activeSessionId) return;
     try {
       const dbRes = await fetch('/api/session');
       const dbData = await dbRes.json();
       const sessions = dbData.sessions || [];
-      if (sessions.length > 0) {
-        sessions[0].source_text = importedText;
-      } else {
-        sessions.push({
-          id: 's' + Date.now(),
-          title: 'Default Session',
-          source_text: importedText,
-          active_lens: 'None',
-          created_at: new Date().toISOString()
-        });
+      const session = sessions.find((s: any) => s.id === activeSessionId);
+      
+      if (session) {
+        session.source_text = importedText;
       }
+      
       await fetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -136,6 +97,38 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
       /* silent */
     }
   };
+
+  // ── Fetch Dynamic Hotspots ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (activeLens === 'None' || isEditing || text.trim().length === 0) {
+      setDynamicHotspots([]);
+      return;
+    }
+    
+    // Slight debounce when updating to avoid spamming the API
+    const timeoutId = setTimeout(async () => {
+      setIsFetchingHotspots(true);
+      try {
+        const res = await fetch('/api/hotspots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceText: text, activeLens })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setDynamicHotspots(data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch dynamic hotspots", err);
+      } finally {
+        setIsFetchingHotspots(false);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [text, activeLens, isEditing]);
 
   // ── Set dynamic positioning for toolbar ──────────────────────────────────
   useEffect(() => {
@@ -235,10 +228,17 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
 
   // ── Render highlighted text ─────────────────────────────────────────────────
   const renderHighlightedText = () => {
-    if (activeLens === 'None' || !LENSES[activeLens]) {
-      return <p className="whitespace-pre-wrap">{text}</p>;
+    if (activeLens === 'None' || dynamicHotspots.length === 0) {
+      return (
+        <p className="whitespace-pre-wrap">
+          {isFetchingHotspots && <span className="block mb-2 text-sm text-yellow-400/80 italic animate-pulse">Analyzing text with Gemini for {activeLens} insights...</span>}
+          {text}
+        </p>
+      );
     }
-    const highlights = LENSES[activeLens];
+    
+    const highlights = dynamicHotspots;
+    // Map text blocks safely escaping regex properly
     const regexStr = highlights
       .map((h) => h.textToHighlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       .join('|');
@@ -246,26 +246,29 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
     const parts = text.split(regex);
 
     return (
-      <p className="whitespace-pre-wrap leading-relaxed">
-        {parts.map((part, i) => {
-          const match = highlights.find((h) => h.textToHighlight === part.toLowerCase());
-          if (match) {
-            const isActive = activeHighlight === match;
-            return (
-              <span
-                key={i}
-                className={`perspective-highlight cursor-pointer transition-all duration-150 ${
-                  isActive ? 'text-yellow-200 brightness-125' : 'text-yellow-100'
-                }`}
-                onClick={() => setActiveHighlight(isActive ? null : match)}
-              >
-                {part}
-              </span>
-            );
-          }
-          return <span key={i}>{part}</span>;
-        })}
-      </p>
+      <div className="relative">
+        {isFetchingHotspots && <p className="mb-2 text-sm text-yellow-400/80 italic animate-pulse">Analyzing text with Gemini for {activeLens} insights...</p>}
+        <p className="whitespace-pre-wrap leading-relaxed">
+          {parts.map((part, i) => {
+            const match = highlights.find((h) => h.textToHighlight.toLowerCase() === part.toLowerCase());
+            if (match) {
+              const isActive = activeHighlight === match;
+              return (
+                <span
+                  key={i}
+                  className={`perspective-highlight cursor-pointer transition-all duration-150 ${
+                    isActive ? 'text-yellow-200 brightness-125 bg-yellow-900/40 rounded px-0.5' : 'text-yellow-100 bg-yellow-900/20 rounded px-0.5'
+                  }`}
+                  onClick={() => setActiveHighlight(isActive ? null : match)}
+                >
+                  {part}
+                </span>
+              );
+            }
+            return <span key={i}>{part}</span>;
+          })}
+        </p>
+      </div>
     );
   };
 
