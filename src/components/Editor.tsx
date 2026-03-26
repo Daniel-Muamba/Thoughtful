@@ -55,21 +55,27 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
       isFetching.current = true;
       setIsChecking(true);
       try {
-        const res = await fetch("/api/coach", {
+        const res = await fetch("/api/editor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: text, nodes }),
+          body: JSON.stringify({ currentDraft: text, scaffoldNodes: nodes }),
         });
         const data = await res.json();
-        if (data?.provocation) {
+        
+        if (!res.ok || data.error) {
+          // If offline or error, we could show a silent margin error, but we fail gracefully
+          return;
+        }
+
+        if (data?.challenge && data.challenge.trim() !== '') {
           const p: Provocation = {
             id: `prov_${Date.now()}`,
-            sentence: data.provocation.textSnippet,
-            question: data.provocation.question,
-            nodeId: data.provocation.nodeId ?? null,
-            nodeTitle: data.provocation.nodeTitle ?? null,
-            nodeEvidence: data.provocation.nodeEvidence ?? null,
-            nodeClaim: data.provocation.nodeClaim ?? null,
+            sentence: data.sentence || "General logic check",
+            question: data.challenge,
+            nodeId: null, // we don't strictly need the ID for display
+            nodeTitle: data.nodeTitle || null,
+            nodeEvidence: data.nodeEvidence || null,
+            nodeClaim: data.nodeClaim || null,
             resolved: false,
           };
           setProvocations((prev) => {

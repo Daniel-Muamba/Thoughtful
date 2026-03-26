@@ -23,6 +23,7 @@ interface SelectionRect {
 interface ELI10State {
   loading: boolean;
   explanation: string | null;
+  error?: string;
 }
 
 interface ReaderProps {
@@ -183,20 +184,35 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
     setEli10({ loading: false, explanation: null });
   };
 
-  // ── ELI10 fetch ────────────────────────────────────────────────────────────
+  // ── Gemini Reader API fetch ──────────────────────────────────────────────
   const handleExplain = async () => {
     if (!selRect) return;
-    setEli10({ loading: true, explanation: null });
+    setEli10({ loading: true, explanation: null, error: undefined });
     try {
-      const res = await fetch('/api/eli10', {
+      const res = await fetch('/api/reader', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: selRect.text }),
+        body: JSON.stringify({ selectedText: selRect.text, activeLens }),
       });
       const data = await res.json();
-      setEli10({ loading: false, explanation: data.explanation ?? 'No explanation returned.' });
+      
+      if (!res.ok || data.error) {
+        setEli10({ loading: false, explanation: null, error: data.error || 'AI is offline' });
+        return;
+      }
+
+      // We have dynamic insight, example, challenge!
+      // Display it in the main Lens Hotspot Popover 
+      setActiveHighlight({
+        textToHighlight: selRect.text,
+        insight: data.insight,
+        example: data.example,
+        challenge: data.challenge,
+      });
+      dismissToolbar();
+      
     } catch {
-      setEli10({ loading: false, explanation: 'Could not reach the AI. Please try again.' });
+      setEli10({ loading: false, explanation: null, error: 'AI is offline' });
     }
   };
 
@@ -339,14 +355,14 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
           ref={toolbarRef}
           className="fixed z-50 flex flex-col items-center gap-1.5 pointer-events-none"
         >
-          {/* ELI10 Speech Bubble */}
-          {(eli10.loading || eli10.explanation) && (
+          {/* ELI10 / AI Bubble (Loading or Error) */}
+          {(eli10.loading || eli10.error || eli10.explanation) && (
             <div className="pointer-events-auto w-72 bg-[#1e1e1e] border border-zinc-700 rounded-xl p-4 shadow-2xl font-sans flex flex-col gap-3 mb-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[16px] text-sky-400">child_care</span>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-sky-400">
-                    Lurking AI · ELI10
+                    Lurking AI
                   </span>
                 </div>
                 <button
@@ -360,7 +376,12 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
               {eli10.loading ? (
                 <div className="flex items-center gap-2 text-zinc-400 text-[13px]">
                   <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                  Thinking…
+                  Analyzing with Gemini…
+                </div>
+              ) : eli10.error ? (
+                <div className="flex items-center gap-2 text-rose-400 text-[13px]">
+                  <span className="material-symbols-outlined text-[18px]">error</span>
+                  {eli10.error}
                 </div>
               ) : (
                 <p className="text-[13px] leading-relaxed text-zinc-200 italic">
