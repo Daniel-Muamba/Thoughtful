@@ -45,7 +45,26 @@ const dbPath = isVercel
   ? '/tmp/db.json' 
   : path.join(process.cwd(), 'src/lib/db.json');
 
+// On Vercel, /tmp is ephemeral — seed it from the bundled db.json on cold start.
+function ensureDB(): void {
+  if (!isVercel) return;
+  if (fs.existsSync(dbPath)) return; // already seeded in this warm instance
+  try {
+    const seedPath = path.join(process.cwd(), 'src/lib/db.json');
+    if (fs.existsSync(seedPath)) {
+      fs.copyFileSync(seedPath, dbPath);
+    } else {
+      // Write a minimal empty-but-valid DB so writes don't fail
+      const empty: DBType = { sessions: [], scaffoldNodes: [], provocations: [], drafts: [] };
+      fs.writeFileSync(dbPath, JSON.stringify(empty, null, 2), 'utf8');
+    }
+  } catch (err) {
+    console.error('Failed to seed /tmp/db.json:', err);
+  }
+}
+
 export function readDB(): DBType {
+  ensureDB();
   try {
     const data = fs.readFileSync(dbPath, 'utf8');
     return JSON.parse(data) as DBType;
