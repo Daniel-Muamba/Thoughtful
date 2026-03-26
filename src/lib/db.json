@@ -82,9 +82,25 @@
       "id": "node_1774537448127",
       "session_id": "session_1774534541823",
       "evidence_quote": "Euripide était mort",
-      "title": "",
-      "student_claim": "",
+      "title": "Work Experience",
+      "student_claim": "Extensive experience in hospitality.",
       "order_index": 7
+    },
+    {
+      "id": "node_1774558557230",
+      "session_id": "session_1774534541823",
+      "evidence_quote": "y: Immediately",
+      "title": "Availability StBirth Detailsatus",
+      "student_claim": "I am available to start immediately.",
+      "order_index": 8
+    },
+    {
+      "id": "node_1774558656487",
+      "session_id": "session_1774534541823",
+      "evidence_quote": "rth: 25/05/2003",
+      "title": "Personal Details",
+      "student_claim": "This includes my birth date.",
+      "order_index": 9
     }
   ],
   "provocations": [],

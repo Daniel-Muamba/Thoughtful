@@ -3,15 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import SourceUpload from './SourceUpload';
 import InsightInspector from './InsightInspector';
-
-type LensType = 'None' | 'Skeptic' | 'Teacher' | 'Auditor';
-
-interface HighlightDef {
-  textToHighlight: string;
-  insight: string;
-  example: string;
-  challenge: string;
-}
+import { LENSES, NO_LENS, type LensValue } from '@/lib/lenses';
+import type { HighlightDef } from './InsightInspector';
 
 interface SelectionRect {
   text: string;
@@ -30,6 +23,7 @@ interface ELI10State {
 interface ReaderProps {
   activeSessionId: string | null;
   onAddToScaffold?: (quote: string) => void;
+  onTextChange?: (text: string) => void;
 }
 
 const DEFAULT_TEXT =
@@ -37,10 +31,10 @@ const DEFAULT_TEXT =
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps) {
+export default function Reader({ activeSessionId, onAddToScaffold, onTextChange }: ReaderProps) {
   const [text, setText] = useState(DEFAULT_TEXT);
   const [isEditing, setIsEditing] = useState(false);
-  const [activeLens, setActiveLens] = useState<LensType>('None');
+  const [activeLens, setActiveLens] = useState<LensValue>(NO_LENS);
   const [activeHighlight, setActiveHighlight] = useState<HighlightDef | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   
@@ -64,16 +58,19 @@ export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps
         const session = data?.sessions?.find((s: any) => s.id === activeSessionId);
         if (session && session.source_text) {
           setText(session.source_text);
+          onTextChange?.(session.source_text);
         } else {
           setText(""); // clear text if new session
+          onTextChange?.("");
         }
       })
       .catch(() => {});
-  }, [activeSessionId]);
+  }, [activeSessionId, onTextChange]);
 
   // ── Handle importing text from SourceUpload ────────────────────────────────
   const handleImport = async (importedText: string) => {
     setText(importedText);
+    onTextChange?.(importedText);
     setIsUploadOpen(false);
     
     // Save to persistence
@@ -100,7 +97,7 @@ export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps
 
   // ── Fetch Dynamic Hotspots ─────────────────────────────────────────────────
   useEffect(() => {
-    if (activeLens === 'None' || isEditing || text.trim().length === 0) {
+    if (activeLens === NO_LENS || isEditing || text.trim().length === 0) {
       setDynamicHotspots([]);
       return;
     }
@@ -125,7 +122,7 @@ export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps
       } finally {
         setIsFetchingHotspots(false);
       }
-    }, 500);
+    }, 2500); // Debounce: wait 2.5s before firing to stay within rate limits
     
     return () => clearTimeout(timeoutId);
   }, [text, activeLens, isEditing]);
@@ -181,6 +178,16 @@ export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps
   // ── Gemini Reader API fetch ──────────────────────────────────────────────
   const handleExplain = async () => {
     if (!selRect) return;
+    // Show a 'Thinking...' placeholder immediately so the inspector opens right away
+    const thinkingPlaceholder: HighlightDef = {
+      textToHighlight: selRect.text,
+      insight: 'Thinking…',
+      example: 'Thinking…',
+      challenge: 'Thinking…',
+    };
+    setActiveHighlight(thinkingPlaceholder);
+    dismissToolbar();
+
     setEli10({ loading: true, explanation: null, error: undefined });
     try {
       const res = await fetch('/api/reader', {
@@ -192,21 +199,33 @@ export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps
       
       if (!res.ok || data.error) {
         setEli10({ loading: false, explanation: null, error: data.error || 'AI is offline' });
+        // Keep the inspector open but show error state
+        setActiveHighlight({
+          textToHighlight: selRect.text,
+          insight: 'The AI could not respond right now.',
+          example: 'Please try again in a moment.',
+          challenge: data.error || 'AI is offline',
+        });
         return;
       }
 
-      // We have dynamic insight, example, challenge!
-      // Display it in the main Lens Hotspot Popover 
+      // Fill in the real AI response — overwriting the placeholder
       setActiveHighlight({
         textToHighlight: selRect.text,
-        insight: data.insight,
-        example: data.example,
-        challenge: data.challenge,
+        insight: data.insight || 'No insight returned.',
+        example: data.example || 'No example returned.',
+        challenge: data.challenge || 'No challenge returned.',
       });
-      dismissToolbar();
+      setEli10({ loading: false, explanation: null });
       
     } catch {
       setEli10({ loading: false, explanation: null, error: 'AI is offline' });
+      setActiveHighlight({
+        textToHighlight: selRect.text,
+        insight: 'Could not reach the AI.',
+        example: 'Check your connection and try again.',
+        challenge: 'AI is offline',
+      });
     }
   };
 
@@ -318,16 +337,18 @@ export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps
               aria-label="Perspective Lens"
               title="Perspective Lens"
               onChange={(e) => {
-                setActiveLens(e.target.value as LensType);
+                setActiveLens(e.target.value as LensValue);
                 setActiveHighlight(null);
                 dismissToolbar();
-                if (e.target.value !== 'None') setIsEditing(false);
+                if (e.target.value !== NO_LENS) setIsEditing(false);
               }}
             >
-              <option value="None">Lens: None</option>
-              <option value="Skeptic">Lens: Skeptic</option>
-              <option value="Teacher">Lens: Teacher</option>
-              <option value="Auditor">Lens: Auditor</option>
+              <option value={NO_LENS}>Lens: None</option>
+              {LENSES.map((lens) => (
+                <option key={lens.value} value={lens.value} title={lens.description}>
+                  Lens: {lens.label}
+                </option>
+              ))}
             </select>
             <span className="material-symbols-outlined text-[15px] absolute right-2 pointer-events-none text-zinc-400">
               expand_more
@@ -346,7 +367,7 @@ export default function Reader({ activeSessionId, onAddToScaffold }: ReaderProps
             className="w-full h-full bg-transparent resize-none outline-none font-serif text-[1.05rem] text-zinc-200 leading-[1.85] placeholder:text-zinc-600"
             placeholder="Paste your reading text here, then select a Lens to start highlighting..."
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); onTextChange?.(e.target.value); }}
           />
         ) : (
           renderHighlightedText()

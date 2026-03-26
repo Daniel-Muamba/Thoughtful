@@ -57,7 +57,11 @@ Respond ONLY with a valid JSON Array of objects matching this schema:
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 });
     }
 
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status === 429 || error?.statusText === 'Too Many Requests') {
+      console.warn('Gemini rate limit hit (/api/hotspots) — returning empty.');
+      return NextResponse.json([]);
+    }
     console.error("Gemini API Error (/api/hotspots):", error);
     return NextResponse.json({ error: 'AI is offline' }, { status: 503 });
   }

@@ -16,7 +16,6 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Use Gemini 1.5 Flash as requested implicitly by "Gemini Flash"
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
@@ -24,17 +23,22 @@ export async function POST(req: Request) {
       }
     });
 
+    // ── Lens-agnostic adaptive tutor prompt ──────────────────────────────────
+    // No matter which lens is chosen (Skeptic, Teacher, Auditor, or any future
+    // lens added to src/lib/lenses.ts), the AI always produces the same three
+    // structured fields. Zero API changes needed for new lenses.
     const prompt = `
-You are a mentor analyzing a text through the lens of a "${activeLens}".
-Read the following text selected by a student:
+You are an adaptive tutor. The user has selected a Perspective Lens called "${activeLens}" and highlighted the following text:
+
 "${selectedText}"
 
-Your task is to provide:
-1. "insight": A simple definition or explanation of the core concept in the text.
-2. "example": An ELI10 (Explain Like I'm 10) example using child-friendly concepts (like lemonade stands or playgrounds).
-3. "challenge": A Socratic question to challenge the student's thinking based on the text.
+Regardless of the lens, you MUST return a JSON object with EXACTLY these three keys:
 
-Respond ONLY with a valid JSON object matching this schema:
+1. "insight"  — Analyse the text through the "${activeLens}" lens. Explain what this lens reveals that a plain reading would miss. Be concise and specific to this lens.
+2. "example"  — Provide a super-simple analogy (ELI10 — Explain Like I'm 10) to make the insight immediately click. Use everyday concepts (toys, sport, cooking, etc.). Adapt the analogy to match the spirit of the "${activeLens}" lens.
+3. "challenge" — Pose one Socratic question that forces the student to think MORE DEEPLY about the text from the "${activeLens}" perspective. The question must be open-ended, not answerable with yes/no.
+
+Respond ONLY with a valid JSON object matching this exact schema:
 {
   "insight": "string",
   "example": "string",
@@ -52,7 +56,11 @@ Respond ONLY with a valid JSON object matching this schema:
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 });
     }
 
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status === 429 || error?.statusText === 'Too Many Requests') {
+      console.warn('Gemini rate limit hit (/api/reader) — returning fallback.');
+      return NextResponse.json({ error: 'Rate limit reached — please wait a few seconds and try again.' }, { status: 429 });
+    }
     console.error("Gemini API Error (/api/reader):", error);
     return NextResponse.json({ error: 'AI is offline' }, { status: 503 });
   }

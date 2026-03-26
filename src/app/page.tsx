@@ -15,6 +15,7 @@ export default function Home() {
   const [nodes, setNodes] = useState<ScaffoldNode[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sourceContent, setSourceContent] = useState('');
 
   // Count nodes where both title and claim are filled
   const completedCount = nodes.filter(
@@ -123,7 +124,7 @@ export default function Home() {
 
           {/* Section 1: The Reader */}
           <Panel defaultSize={25} minSize={15} maxSize={40}>
-            <Reader activeSessionId={activeSessionId} onAddToScaffold={handleAddToScaffold} />
+            <Reader activeSessionId={activeSessionId} onAddToScaffold={handleAddToScaffold} onTextChange={setSourceContent} />
           </Panel>
 
           {/* Grab Bar 1 */}
@@ -152,6 +153,7 @@ export default function Home() {
               isUnlocked={isEditorUnlocked}
               completedCount={completedCount}
               gateThreshold={GATEKEEPER_THRESHOLD}
+              sourceContent={sourceContent}
             />
           </Panel>
 
