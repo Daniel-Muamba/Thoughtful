@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
+import SourceUpload from './SourceUpload';
 
 type LensType = 'None' | 'Skeptic' | 'Teacher' | 'Auditor';
 
@@ -79,12 +80,59 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [activeLens, setActiveLens] = useState<LensType>('None');
   const [activeHighlight, setActiveHighlight] = useState<HighlightDef | null>(null);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   // Selection toolbar
   const [selRect, setSelRect] = useState<SelectionRect | null>(null);
   const [eli10, setEli10] = useState<ELI10State>({ loading: false, explanation: null });
 
   const containerRef = useRef<HTMLElement>(null);
+  const hasLoadedRef = useRef(false);
+
+  // ── Load source text on mount ──────────────────────────────────────────────
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+    fetch('/api/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.sessions?.[0]?.source_text) {
+          setText(data.sessions[0].source_text);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Handle importing text from SourceUpload ────────────────────────────────
+  const handleImport = async (importedText: string) => {
+    setText(importedText);
+    setIsUploadOpen(false);
+    
+    // Save to persistence
+    try {
+      const dbRes = await fetch('/api/session');
+      const dbData = await dbRes.json();
+      const sessions = dbData.sessions || [];
+      if (sessions.length > 0) {
+        sessions[0].source_text = importedText;
+      } else {
+        sessions.push({
+          id: 's' + Date.now(),
+          title: 'Default Session',
+          source_text: importedText,
+          active_lens: 'None',
+          created_at: new Date().toISOString()
+        });
+      }
+      await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessions }),
+      });
+    } catch {
+      /* silent */
+    }
+  };
 
   // ── Dismiss toolbar + bubble on Escape or outside click ────────────────────
   useEffect(() => {
@@ -202,9 +250,19 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
     >
       {/* Header */}
       <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0 gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400 shrink-0">
-          The Reader
-        </h2>
+        <div className="flex items-center gap-3 shrink-0">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+            The Reader
+          </h2>
+          <button
+            onClick={() => setIsUploadOpen(true)}
+            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-800/40 hover:bg-zinc-700/60 hover:text-zinc-200 border border-zinc-700/50 px-2.5 py-1 rounded transition-colors"
+            title="Import text or PDF"
+          >
+            <span className="material-symbols-outlined text-[14px]">add_circle</span>
+            Add Source
+          </button>
+        </div>
         <div className="flex items-center gap-2 ml-auto">
           {isEditing ? (
             <button
@@ -371,6 +429,13 @@ export default function Reader({ onAddToScaffold }: ReaderProps) {
           </div>
         </div>
       )}
+
+      {/* ── Source Upload Modal ─────────────────────────────────────────────── */}
+      <SourceUpload
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onImport={handleImport}
+      />
     </section>
   );
 }
