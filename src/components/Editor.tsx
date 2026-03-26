@@ -2,23 +2,9 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ScaffoldNode } from "@/lib/db";
+import MemoryCard, { type MemoryCardData, type MemoryCardType } from "@/components/MemoryCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type SourceHint = 'from_notes' | 'from_source' | null;
-
-interface Provocation {
-  id: string;
-  sentence: string;
-  question: string;
-  nodeId: string | null;
-  nodeTitle: string | null;
-  nodeEvidence: string | null;
-  nodeClaim: string | null;
-  eli10Reminder: string | null;
-  sourceHint: SourceHint;
-  resolved: boolean;
-}
 
 interface EditorProps {
   nodes: ScaffoldNode[];
@@ -28,28 +14,48 @@ interface EditorProps {
   sourceContent: string;
 }
 
-const INITIAL_CONTENT =
-  "The evolution of project management paradigms reflects a broader shift towards data-driven and socially responsible frameworks.\n\nAs indicated by recent academic discourse, the effective integration of artificial intelligence and global sustainability goals are now foundational to modern project execution.\n\nThis requires project leaders to not only master technical analytical tools but also to foster adaptive, collaborative team environments that can navigate complexity.\n\nFurthermore, the professional development landscape is adapting, with certification paths increasingly emphasizing these contemporary competencies.";
+interface ApiCard {
+  type: string;
+  targetSentence?: string;
+  headline?: string;
+  suggestion?: string;
+  eli10Example?: string;
+  nodeTitle?: string;
+  nodeEvidence?: string;
+  sourceFact?: string;
+}
 
-const WORD_TRIGGER = 20;       // trigger after 20 new words
-const PAUSE_TRIGGER_MS = 6000; // trigger after 6s of inactivity
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const VALID_TYPES: MemoryCardType[] = ["better_way", "evidence_gap", "logic_check", "sentence_improver"];
 
 function countWords(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+/** Returns true when the last non-whitespace character is a sentence terminator */
+function endsWithSentence(text: string): boolean {
+  return /[.!?]\s*$/.test(text.trimEnd());
+}
+
+const INITIAL_CONTENT = "";
+
+const COOLDOWN_MS  = 8000; // min ms between API calls
+const PAUSE_MS     = 2000; // idle pause before triggering
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Editor({ nodes, isUnlocked, completedCount, gateThreshold, sourceContent }: EditorProps) {
-  const [content, setContent] = useState(INITIAL_CONTENT);
-  const [provocations, setProvocations] = useState<Provocation[]>([]);
-  const [activeProvocation, setActiveProvocation] = useState<Provocation | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const [wordCount, setWordCount] = useState(() => countWords(INITIAL_CONTENT));
+  const [content, setContent]         = useState(INITIAL_CONTENT);
+  const [cards, setCards]             = useState<MemoryCardData[]>([]);
+  const [overlayCard, setOverlayCard] = useState<MemoryCardData | null>(null);
+  const [isChecking, setIsChecking]   = useState(false);
+  const [wordCount, setWordCount]     = useState(0);
 
-  const lastWordCountAtTrigger = useRef(countWords(INITIAL_CONTENT));
-  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isFetching = useRef(false);
+  const pauseTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFetching      = useRef(false);
+  const lastCallTime    = useRef(0);          // timestamp of last completed call
+  const prevSentenceEnd = useRef(false);      // was the previous state sentence-ended?
 
   const remaining = Math.max(0, gateThreshold - completedCount);
 
@@ -57,53 +63,50 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
   const runCoach = useCallback(
     async (text: string) => {
       if (isFetching.current) return;
+      const now = Date.now();
+      if (now - lastCallTime.current < COOLDOWN_MS) return; // cooldown
+      if (text.trim().split(/\s+/).filter(Boolean).length < 8) return; // too short
+
       isFetching.current = true;
       setIsChecking(true);
       try {
-        // Clean whitespace from source to save tokens
-        const cleanedSource = sourceContent.replace(/\s+/g, ' ').trim();
+        const cleanedSource = sourceContent.replace(/\s+/g, " ").trim();
         const res = await fetch("/api/editor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ currentDraft: text, scaffoldNodes: nodes, sourceContent: cleanedSource }),
+          body: JSON.stringify({
+            currentDraft: text,
+            scaffoldNodes: nodes,
+            sourceContent: cleanedSource,
+          }),
         });
+        if (!res.ok) return;
         const data = await res.json();
-        
-        if (!res.ok || data.error) {
-          // If offline or error, fail gracefully
-          return;
-        }
 
-        if (data?.challenge && data.challenge.trim() !== '') {
-          const rawHint = data.sourceHint as string | undefined;
-          const sourceHint: SourceHint =
-            rawHint === 'from_source' ? 'from_source'
-            : rawHint === 'from_notes' ? 'from_notes'
-            : null;
-          const p: Provocation = {
-            id: `prov_${Date.now()}`,
-            sentence: data.sentence || "General logic check",
-            question: data.challenge,
-            nodeId: null,
-            nodeTitle: data.nodeTitle || null,
-            nodeEvidence: data.nodeEvidence || null,
-            nodeClaim: data.nodeClaim || null,
-            eli10Reminder: data.eli10Reminder?.trim() || null,
-            sourceHint,
-            resolved: false,
-          };
-          setProvocations((prev) => {
-            const exists = prev.some((x) => x.sentence === p.sentence && !x.resolved);
-            return exists ? prev : [...prev, p];
-          });
-          setActiveProvocation(p);
+        if (Array.isArray(data.cards) && data.cards.length > 0) {
+          const newCards: MemoryCardData[] = (data.cards as ApiCard[])
+            .filter(c => VALID_TYPES.includes(c.type as MemoryCardType))
+            .map((c, i) => ({
+              id: `card_${Date.now()}_${i}`,
+              type: c.type as MemoryCardType,
+              targetSentence: c.targetSentence || "",
+              headline: c.headline || "A thought for you",
+              suggestion: c.suggestion || "",
+              eli10Example: c.eli10Example || undefined,
+              nodeTitle: c.nodeTitle || undefined,
+              nodeEvidence: c.nodeEvidence || undefined,
+              sourceFact: c.sourceFact || undefined,
+            }));
+          if (newCards.length > 0) {
+            setCards(newCards); // replace cards on each cycle — freshest thinking
+          }
         }
       } catch {
         /* silent */
       } finally {
         isFetching.current = false;
+        lastCallTime.current = Date.now();
         setIsChecking(false);
-        lastWordCountAtTrigger.current = countWords(text);
       }
     },
     [nodes, sourceContent]
@@ -113,56 +116,71 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     setContent(newText);
-    const newWords = countWords(newText);
-    setWordCount(newWords);
+    setWordCount(countWords(newText));
 
+    // Clear any pending pause timer
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
 
-    if (newWords - lastWordCountAtTrigger.current >= WORD_TRIGGER) {
-      runCoach(newText);
+    // Sentence-end trigger: fire immediately when user completes a sentence
+    const isSentenceEnd = endsWithSentence(newText);
+    if (isSentenceEnd && !prevSentenceEnd.current) {
+      // Just typed a sentence terminator — fire after a tiny delay to let them finish
+      pauseTimerRef.current = setTimeout(() => runCoach(newText), 500);
     } else {
-      pauseTimerRef.current = setTimeout(() => runCoach(newText), PAUSE_TRIGGER_MS);
+      // Otherwise fire after 2s of inactivity
+      pauseTimerRef.current = setTimeout(() => runCoach(newText), PAUSE_MS);
     }
+    prevSentenceEnd.current = isSentenceEnd;
   };
 
+  // Cleanup timer on unmount
   useEffect(() => () => { if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current); }, []);
 
-  const activeProvocations = provocations.filter((p) => !p.resolved);
+  // Dismiss a specific card
+  const dismissCard = (id: string) =>
+    setCards(prev => prev.filter(c => c.id !== id));
 
-  const resolveProvocation = (id: string) => {
-    setProvocations((prev) => prev.map((p) => (p.id === id ? { ...p, resolved: true } : p)));
-    if (activeProvocation?.id === id) setActiveProvocation(null);
-  };
+  // Dismiss overlay on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOverlayCard(null); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const activeCards = cards; // all cards are "active" — user dismisses manually
 
   return (
     <section className="h-full flex flex-col bg-[#181818] rounded-lg border academic-border overflow-hidden relative">
-      {/* Header */}
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="h-12 border-b academic-border flex items-center justify-between px-4 shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">The Editor</h2>
         <div className="flex items-center gap-3">
           {isChecking && (
             <span className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium">
               <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
-              Lurking AI…
+              Active Coach…
             </span>
           )}
-          {isUnlocked && activeProvocations.length > 0 && (
-            <span className="text-[10px] font-bold text-rose-400 flex items-center gap-1">
-              <span className="material-symbols-outlined text-[13px]">warning</span>
-              {activeProvocations.length} challenge{activeProvocations.length !== 1 ? "s" : ""}
+          {isUnlocked && activeCards.length > 0 && (
+            <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[13px]">auto_awesome</span>
+              {activeCards.length} suggestion{activeCards.length !== 1 ? "s" : ""}
             </span>
           )}
-          {isUnlocked && activeProvocations.length === 0 && (
+          {isUnlocked && activeCards.length === 0 && !isChecking && (
             <span className="flex items-center gap-1 text-[10px] text-emerald-500 font-semibold">
-              <span className="material-symbols-outlined text-[13px]">lock_open</span>
-              Unlocked
+              <span className="material-symbols-outlined text-[13px]">check_circle</span>
+              Looking good
             </span>
           )}
         </div>
       </header>
 
-      {/* Body: textarea + margin */}
+      {/* ── Body: textarea + sliding sidebar ────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden relative">
+
+        {/* Writing area */}
         <textarea
           className={`flex-1 resize-none outline-none bg-transparent p-8 font-serif text-[1.05rem] leading-[1.85] custom-scrollbar transition-all duration-500 ${
             isUnlocked
@@ -172,35 +190,24 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
           value={content}
           onChange={handleChange}
           readOnly={!isUnlocked}
-          placeholder="Start writing your argument here…"
+          placeholder="Start writing your argument here… The coach will awaken after your first sentence."
           spellCheck={true}
         />
 
-        {/* Provocation Margin */}
-        <div className="w-[60px] shrink-0 border-l academic-border flex flex-col items-center pt-8 gap-4">
-          {isUnlocked &&
-            activeProvocations.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setActiveProvocation(activeProvocation?.id === p.id ? null : p)}
-                className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-150 ${
-                  activeProvocation?.id === p.id
-                    ? p.sourceHint === 'from_source'
-                      ? 'bg-sky-500/20 ring-1 ring-sky-500/50'
-                      : 'bg-amber-500/20 ring-1 ring-amber-500/50'
-                    : p.sourceHint === 'from_source'
-                      ? 'bg-sky-900/20 hover:bg-sky-500/20 ring-1 ring-sky-800/40 hover:ring-sky-500/40'
-                      : 'bg-amber-900/20 hover:bg-amber-500/20 ring-1 ring-amber-800/40 hover:ring-amber-500/40'
-                }`}
-                title={p.sentence.substring(0, 60) + '…'}
-              >
-                <span className={`material-symbols-outlined text-[15px] ${
-                  p.sourceHint === 'from_source' ? 'text-sky-400' : 'text-amber-400'
-                }`}>
-                  {p.sourceHint === 'from_source' ? 'menu_book' : 'sticky_note_2'}
-                </span>
-              </button>
-            ))}
+        {/* Memory Card Sidebar — slides in when cards are present */}
+        <div
+          className={`shrink-0 border-l academic-border flex flex-col gap-3 overflow-y-auto custom-scrollbar py-4 px-3 transition-all duration-300 ${
+            isUnlocked && activeCards.length > 0 ? "w-64 opacity-100" : "w-0 opacity-0 px-0"
+          }`}
+        >
+          {isUnlocked && activeCards.map(card => (
+            <MemoryCard
+              key={card.id}
+              card={card}
+              onDismiss={dismissCard}
+              onApply={setOverlayCard}
+            />
+          ))}
         </div>
 
         {/* Gatekeeper Overlay */}
@@ -229,126 +236,66 @@ export default function Editor({ nodes, isUnlocked, completedCount, gateThreshol
         )}
       </div>
 
-      {/* Recall Card (active provocation) */}
-      {activeProvocation && !activeProvocation.resolved && isUnlocked && (
-        <div className="border-t border-[#2a2a2a] bg-[#161616] font-sans flex flex-col shrink-0">
-
-          {/* ── Card Header ── */}
-          <div className={`flex items-center justify-between px-5 py-3 border-b ${
-            activeProvocation.sourceHint === 'from_source'
-              ? 'border-sky-900/40 bg-sky-950/30'
-              : 'border-amber-900/40 bg-amber-950/20'
-          }`}>
-            <div className="flex items-center gap-2">
-              <span className={`material-symbols-outlined text-[15px] ${
-                activeProvocation.sourceHint === 'from_source' ? 'text-sky-400' : 'text-amber-400'
-              }`}>
-                {activeProvocation.sourceHint === 'from_source' ? 'menu_book' : 'sticky_note_2'}
-              </span>
-              <span className={`text-[10px] font-bold uppercase tracking-widest ${
-                activeProvocation.sourceHint === 'from_source' ? 'text-sky-400' : 'text-amber-400'
-              }`}>
-                {activeProvocation.sourceHint === 'from_source' ? 'Source Recall' : 'Note Recall'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => resolveProvocation(activeProvocation.id)}
-                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/50 px-3 py-1.5 rounded transition-colors"
-              >
-                <span className="material-symbols-outlined text-[13px]">check</span>
-                Resolve
-              </button>
-              <button
-                onClick={() => setActiveProvocation(null)}
-                className="text-zinc-600 hover:text-zinc-300 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            </div>
-          </div>
-
-          {/* ── Card Body ── */}
-          <div className="flex flex-col gap-4 px-5 py-4 max-h-[260px] overflow-y-auto custom-scrollbar">
-
-            {/* Challenged sentence */}
-            <p className="text-[11.5px] italic text-zinc-500 border-l-2 border-rose-800/60 pl-3 leading-snug">
-              &ldquo;{activeProvocation.sentence}&rdquo;
-            </p>
-
-            {/* The Challenge — Socratic question */}
-            <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/70 flex items-center gap-1 mb-1.5">
-                <span className="material-symbols-outlined text-[11px]">psychology_alt</span>
-                The Challenge
-              </span>
-              <p className="text-[13px] leading-relaxed text-zinc-200">
-                {activeProvocation.question}
-              </p>
-            </div>
-
-            {/* ELI10 Reminder — only when present */}
-            {activeProvocation.eli10Reminder && (
-              <div className="bg-emerald-950/30 border border-emerald-900/40 rounded-lg px-3 py-2.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/70 flex items-center gap-1 mb-1.5">
-                  <span className="material-symbols-outlined text-[11px]">child_care</span>
-                  Memory Jog
-                </span>
-                <p className="text-[12px] text-emerald-300/80 leading-snug italic">
-                  {activeProvocation.eli10Reminder}
-                </p>
-              </div>
-            )}
-
-            {/* Note Recall context block */}
-            {activeProvocation.sourceHint === 'from_notes' && activeProvocation.nodeTitle && (
-              <div className="bg-[#1e1a0f] border border-amber-900/30 rounded-lg p-3 flex flex-col gap-2">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500/60 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[11px]">sticky_note_2</span>
-                  Your Research Note
-                </span>
-                <p className="text-[12px] font-semibold text-zinc-300">{activeProvocation.nodeTitle}</p>
-                {activeProvocation.nodeEvidence && (
-                  <p className="text-[11.5px] italic text-zinc-400 border-l-2 border-amber-700/50 pl-2 leading-snug">
-                    &ldquo;{activeProvocation.nodeEvidence}&rdquo;
-                  </p>
-                )}
-                {activeProvocation.nodeClaim && (
-                  <p className="text-[11.5px] text-zinc-400">
-                    <span className="text-zinc-500">Your claim: </span>
-                    {activeProvocation.nodeClaim}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Source Recall context block */}
-            {activeProvocation.sourceHint === 'from_source' && (
-              <div className="bg-[#0f1a23] border border-sky-900/40 rounded-lg p-3 flex flex-col gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-sky-500/60 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[11px]">menu_book</span>
-                  From Your Reading (Pane 1)
-                </span>
-                <p className="text-[12px] text-sky-300/70 leading-snug">
-                  Revisit the Source Material to find the specific detail that supports or challenges this claim.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Footer */}
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer className="h-8 border-t academic-border px-4 flex items-center justify-between shrink-0 bg-[#141414]">
         <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-medium">
           <span>Words: {wordCount}</span>
-          <span>Challenges: {activeProvocations.length}</span>
+          <span>Suggestions: {activeCards.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-emerald-500/50"></div>
+          <div className="h-2 w-2 rounded-full bg-emerald-500/50" />
           <span className="text-[10px] text-zinc-500 uppercase tracking-tighter">Auto-save On</span>
         </div>
       </footer>
+
+      {/* ── Apply Concept Overlay (bottom-right floating card) ───────────── */}
+      {overlayCard && (
+        <div className="absolute bottom-12 right-4 z-50 w-72 bg-[#111]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[14px] text-emerald-400">open_in_new</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                Reference — {overlayCard.headline}
+              </span>
+            </div>
+            <button
+              onClick={() => setOverlayCard(null)}
+              className="text-zinc-600 hover:text-zinc-300 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[15px]">close</span>
+            </button>
+          </div>
+          <div className="flex flex-col gap-3 px-4 py-4 max-h-64 overflow-y-auto custom-scrollbar">
+            {overlayCard.eli10Example && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-sky-400/70 mb-1 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[11px]">child_care</span>ELI10 Analogy
+                </p>
+                <p className="text-[12px] text-sky-300/80 italic leading-relaxed">{overlayCard.eli10Example}</p>
+              </div>
+            )}
+            {overlayCard.nodeEvidence && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 mb-1">
+                  📎 {overlayCard.nodeTitle || "Your Note"}
+                </p>
+                <p className="text-[12px] italic text-zinc-400 border-l-2 border-amber-700/40 pl-2 leading-relaxed">
+                  &ldquo;{overlayCard.nodeEvidence}&rdquo;
+                </p>
+              </div>
+            )}
+            {overlayCard.sourceFact && (
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[11px]">menu_book</span>From Source
+                </p>
+                <p className="text-[12px] text-zinc-400 leading-relaxed">{overlayCard.sourceFact}</p>
+              </div>
+            )}
+            <p className="text-[10px] text-zinc-600 italic mt-1">Press Esc to close</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
