@@ -14,7 +14,48 @@
       "active_lens": "The Skeptic"
     }
   ],
-  "scaffoldNodes": [],
+  "scaffoldNodes": [
+    {
+      "id": "node_1774518163176",
+      "session_id": "default-session-1",
+      "evidence_quote": "schedule",
+      "title": "ahvjah",
+      "student_claim": "avja",
+      "order_index": 0
+    },
+    {
+      "id": "node_1774518172483",
+      "session_id": "default-session-1",
+      "evidence_quote": "great ones.",
+      "title": "jhjbsh",
+      "student_claim": "bjhsbjkb\n",
+      "order_index": 1
+    },
+    {
+      "id": "node_1774518193002",
+      "session_id": "default-session-1",
+      "evidence_quote": "project management demand efficiency at all",
+      "title": "jhxjhbh",
+      "student_claim": "vshjhb",
+      "order_index": 2
+    },
+    {
+      "id": "node_1774518196625",
+      "session_id": "default-session-1",
+      "evidence_quote": "to maintain a strict schedule, as delays wi",
+      "title": "",
+      "student_claim": "",
+      "order_index": 3
+    },
+    {
+      "id": "node_1774518202254",
+      "session_id": "default-session-1",
+      "evidence_quote": "strict schedule, as delays will",
+      "title": "",
+      "student_claim": "",
+      "order_index": 4
+    }
+  ],
   "provocations": [],
   "drafts": [
     {
